@@ -387,8 +387,13 @@ pub struct Renderer {
 
 impl Renderer {
     pub async fn new(canvas: HtmlCanvasElement) -> Result<Self, String> {
-        let w = canvas.width().max(1);
-        let h = canvas.height().max(1);
+        // Cap to the WebGL2 spec minimum max-texture-dimension so surface.configure
+        // doesn't panic on GPUs that top out at 2048 (common on integrated/mobile).
+        let max_dim = Limits::downlevel_webgl2_defaults().max_texture_dimension_2d;
+        let w = canvas.width().max(1).min(max_dim);
+        let h = canvas.height().max(1).min(max_dim);
+        canvas.set_width(w);
+        canvas.set_height(h);
         let aspect = w as f32 / h as f32;
 
         // Force WebGL2 backend — avoids Chrome WebGPU spec version mismatches.
