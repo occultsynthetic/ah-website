@@ -136,6 +136,20 @@ html, body {
 
 .online {
     color: #4dff88;
+    transition: text-shadow 0.15s ease;
+}
+
+.online:hover {
+    text-shadow: 0 0 6px rgba(77, 255, 136, 0.85), 0 0 18px rgba(77, 255, 136, 0.4), 0 0 40px rgba(77, 255, 136, 0.15);
+}
+
+.offline {
+    color: #ff4455;
+    transition: text-shadow 0.15s ease;
+}
+
+.offline:hover {
+    text-shadow: 0 0 6px rgba(255, 68, 85, 0.85), 0 0 18px rgba(255, 68, 85, 0.4), 0 0 40px rgba(255, 68, 85, 0.15);
 }
 
 /* ── shared panel base ────────────────────────────────────── */
