@@ -1,0 +1,36 @@
+[package]
+name = "frontend"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+wasm-bindgen = "0.2"
+wasm-bindgen-futures = "0.4"
+web-sys = { version = "0.3", features = [
+    "Window",
+    "Document",
+    "Element",
+    "HtmlCanvasElement",
+    "HtmlInputElement",
+    "CanvasRenderingContext2d",
+    "DomTokenList",
+    "MouseEvent",
+    "InputEvent",
+    "Performance",
+    "DomRect",
+] }
+js-sys = "0.3"
+wgpu = { version = "22", features = ["webgl"] }
+bytemuck = { version = "1", features = ["derive"] }
+glam = "0.29"
+console_error_panic_hook = "0.1"
+console_log = "1"
+log = "0.4"
+pulldown-cmark = { version = "0.11", default-features = false, features = ["html"] }
+gltf = { version = "1", default-features = false, features = ["utils", "import"] }
+
+[profile.release]
+opt-level = 3

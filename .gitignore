@@ -1,0 +1,4 @@
+/target
+frontend/dist
+frontend/trunk_err.txt
+frontend/trunk_out.txt

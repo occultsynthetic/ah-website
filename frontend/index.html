@@ -1,0 +1,125 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>megastructure</title>
+    <link data-trunk rel="css" href="styles.css" />
+    <link data-trunk rel="copy-dir" href="assets" />
+</head>
+<body>
+
+    <!-- ── CRT scan-line overlay (pointer-events: none, above everything) ── -->
+    <div id="crt-overlay" aria-hidden="true"></div>
+
+    <!-- ── Splash / photosensitivity disclaimer ── -->
+    <div id="splash">
+        <div id="splash-inner">
+            <div class="splash-head">
+                <span class="splash-cursor">█</span><span>&nbsp;MEGASTRUCTURE.SYS</span>
+            </div>
+            <div class="splash-rule">────────────────────────────────────────────────────────────</div>
+            <div class="splash-label">&gt;&gt;&nbsp;HEALTH&nbsp;ADVISORY&nbsp;/&nbsp;PHOTOSENSITIVITY</div>
+            <div class="splash-rule">────────────────────────────────────────────────────────────</div>
+            <div class="splash-body">
+                <div>This system contains rapidly flashing images,</div>
+                <div>strobing light effects, and high-contrast visual</div>
+                <div>transitions that may trigger seizures in individuals</div>
+                <div>with photosensitive epilepsy or similar conditions.</div>
+                <div class="splash-gap"></div>
+                <div>If you or those nearby are affected by flashing</div>
+                <div>lights, discontinue use and consult a physician.</div>
+            </div>
+            <div class="splash-rule">────────────────────────────────────────────────────────────</div>
+            <div class="splash-opts">
+                <div id="splash-enter" class="splash-opt">▸&nbsp;&nbsp;ACKNOWLEDGE AND ENTER</div>
+                <div id="splash-back"  class="splash-opt">▸&nbsp;&nbsp;EXIT</div>
+            </div>
+        </div>
+    </div>
+
+    <canvas id="canvas"></canvas>
+    <canvas id="glitch-canvas"></canvas>
+    <div id="hover-ghost" aria-hidden="true"></div>
+
+    <!-- ── content panels (sectors 0–2) ── -->
+    <div id="panel-0" class="content-panel panel-hidden">
+        <div class="panel-header">
+            <span class="notes-prompt">⟩⟩&nbsp;</span>
+            <span class="panel-title">SECTOR_01&nbsp;—&nbsp;ENTRY</span>
+        </div>
+        <div class="panel-body">
+            <div class="notes-empty">// SELECT A FILE OR NAVIGATE TO BEGIN</div>
+        </div>
+    </div>
+
+    <div id="panel-1" class="content-panel panel-hidden">
+        <div class="panel-header">
+            <span class="notes-prompt">⟩⟩&nbsp;</span>
+            <span class="panel-title">SECTOR_02&nbsp;—&nbsp;UPPER</span>
+        </div>
+        <div class="panel-body">
+            <div class="notes-empty">// NO DATA</div>
+        </div>
+    </div>
+
+    <div id="panel-2" class="content-panel panel-hidden">
+        <div class="panel-header">
+            <span class="notes-prompt">⟩⟩&nbsp;</span>
+            <span class="panel-title">SECTOR_03&nbsp;—&nbsp;CORE</span>
+        </div>
+        <div class="panel-body">
+            <div class="notes-empty">// NO DATA</div>
+        </div>
+    </div>
+
+    <!-- ── notes panel (SECTOR_04 / DEPTHS) ── -->
+    <div id="notes-panel" class="notes-hidden">
+        <div id="notes-sidebar">
+            <div id="notes-search-bar">
+                <span class="notes-prompt">/ </span>
+                <input id="notes-search" type="text" placeholder="search" autocomplete="off" spellcheck="false">
+            </div>
+            <div id="notes-tree">
+                <div class="notes-loading">// loading...</div>
+            </div>
+        </div>
+        <div id="notes-main">
+            <div id="notes-header">
+                <span class="notes-prompt">⟩⟩ </span>
+                <span id="notes-title">DEPTHS.SYS — SELECT FILE</span>
+            </div>
+            <div id="notes-body">
+                <div class="notes-empty">
+                    <div>// NO FILE SELECTED</div>
+                    <div>// CLICK A NOTE IN THE SIDEBAR</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="assets/music.js"></script>
+    <script src="assets/scramble.js"></script>
+
+    <nav id="menu">
+        <div class="menu-header">
+            <span class="cursor">█</span>&nbsp;MEGASTRUCTURE.SYS
+        </div>
+        <div class="menu-rule"></div>
+        <button id="sector-0" class="menu-item active">
+            <span class="prompt">&gt;&nbsp;</span>SECTOR_01&nbsp;/&nbsp;ENTRY
+        </button>
+        <button id="sector-1" class="menu-item">
+            <span class="prompt">&gt;&nbsp;</span>SECTOR_02&nbsp;/&nbsp;UPPER
+        </button>
+        <button id="sector-2" class="menu-item">
+            <span class="prompt">&gt;&nbsp;</span>SECTOR_03&nbsp;/&nbsp;CORE
+        </button>
+        <button id="sector-3" class="menu-item">
+            <span class="prompt">&gt;&nbsp;</span>SECTOR_04&nbsp;/&nbsp;DEPTHS
+        </button>
+        <div class="menu-rule"></div>
+        <div class="menu-status">STATUS&nbsp;<span class="online">ONLINE</span></div>
+    </nav>
+</body>
+</html>
