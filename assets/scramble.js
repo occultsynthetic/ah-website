@@ -118,6 +118,16 @@
         if (window.__music && notesTitle) window.__music.setTextSeed(notesTitle.textContent || '');
     };
 
+    // ── Mobile detection ─────────────────────────────────────────────
+    var isMobile = /Mobi|Android/i.test(navigator.userAgent) || window.innerWidth <= 768;
+
+    function setAudioStatus(online) {
+        var el = document.getElementById('audio-status');
+        if (!el) return;
+        el.textContent = online ? 'ONLINE' : 'OFFLINE';
+        el.className   = online ? 'online'  : 'offline';
+    }
+
     // ── Splash screen ────────────────────────────────────────────────
     var splashEl    = document.getElementById('splash');
     var splashEnter = document.getElementById('splash-enter');
@@ -127,7 +137,10 @@
         scrambleAll(splashEl, 0, { mode: 'seq', minDur: 350, maxDur: 460 });
 
         function dismissSplash() {
-            if (window.__music) window.__music.init();
+            if (!isMobile && window.__music) {
+                window.__music.init();
+                setAudioStatus(true);
+            }
             splashEl.classList.add('splash-out');
             setTimeout(function () { splashEl.style.display = 'none'; }, 540);
         }
