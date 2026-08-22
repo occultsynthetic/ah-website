@@ -71,11 +71,25 @@ pub async fn main() {
     let raf_loop = raf.clone();
     let glitch_raf = glitch.clone();
 
+    // Cap render work to ~60fps. request_animation_frame still fires at the
+    // display's native refresh rate (120/144Hz on many monitors), but this
+    // scene reads identically at 60 — no reason to pay 2x+ the GPU cost for
+    // an ambient background on high-refresh displays.
+    const FRAME_MS: f64 = 1000.0 / 60.0;
+    let mut last_frame_time = 0.0_f64;
+
     *raf.borrow_mut() = Some(Closure::wrap(Box::new(move || {
-        let (ps, cs, il, sa, t, sy0, sy1) = glitch_raf.borrow_mut().tick();
-        let mut r = renderer.borrow_mut();
-        r.set_glitch(ps, cs, il, sa, t, sy0, sy1);
-        r.render();
+        let now = web_sys::window()
+            .and_then(|w| w.performance())
+            .map(|p| p.now())
+            .unwrap_or(0.0);
+        if now - last_frame_time >= FRAME_MS {
+            last_frame_time = now;
+            let (ps, cs, il, sa, t, sy0, sy1) = glitch_raf.borrow_mut().tick();
+            let mut r = renderer.borrow_mut();
+            r.set_glitch(ps, cs, il, sa, t, sy0, sy1);
+            r.render();
+        }
         request_animation_frame(raf_loop.borrow().as_ref().unwrap());
     }) as Box<dyn FnMut()>));
 

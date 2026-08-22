@@ -194,11 +194,11 @@ fn gen_noise_pixels() -> Vec<u8> {
 
 struct Particle { pos: [f32; 3], vel: [f32; 3], life: f32, size: f32 }
 
-struct ParticleSystem { ps: Vec<Particle>, rng: Rng }
+struct ParticleSystem { ps: Vec<Particle>, rng: Rng, verts: Vec<ParticleVertex> }
 
 impl ParticleSystem {
     fn new(rng: Rng) -> Self {
-        let mut s = Self { ps: Vec::new(), rng };
+        let mut s = Self { ps: Vec::new(), rng, verts: Vec::with_capacity(MAX_P * 6) };
         for _ in 0..MAX_P { s.spawn(); }
         s
     }
@@ -226,21 +226,22 @@ impl ParticleSystem {
         while self.ps.len() < MAX_P { self.spawn(); }
     }
 
-    fn to_verts(&self, right: Vec3, up: Vec3) -> Vec<ParticleVertex> {
+    // Refills the persistent `verts` buffer in place instead of allocating a
+    // fresh Vec every frame (this runs once per rendered frame).
+    fn update_verts(&mut self, right: Vec3, up: Vec3) {
         const QUAD: [(f32, f32); 6] = [
             (-0.5,-0.5),(0.5,-0.5),(0.5,0.5),(-0.5,-0.5),(0.5,0.5),(-0.5,0.5)
         ];
-        let mut out = Vec::with_capacity(self.ps.len() * 6);
+        self.verts.clear();
         for p in &self.ps {
             let c  = Vec3::from_array(p.pos);
             let a  = (p.life * 2.0).min(1.0);
             let col = [0.3 * a, 0.5 * a, 0.4 * a, a * 0.55];
             for (ox, oy) in QUAD {
                 let world = c + right * (ox * p.size) + up * (oy * p.size);
-                out.push(ParticleVertex { pos: world.to_array(), color: col });
+                self.verts.push(ParticleVertex { pos: world.to_array(), color: col });
             }
         }
-        out
     }
 }
 
@@ -368,6 +369,10 @@ pub struct Renderer {
     tgt_eye:  [f32; 3],
     tgt_look: [f32; 3],
     aspect:   f32,
+    // view-space right/up axes, cached from update_uniform()'s view matrix
+    // so render()'s particle billboarding doesn't recompute look_at_rh again
+    cam_right: Vec3,
+    cam_up:    Vec3,
 
     // Phosphor-persistence ping-pong
     composite_out_tex:  Texture,
@@ -432,7 +437,12 @@ impl Renderer {
 
         let (gb_color_tex, gb_color_view) = mk_tex(&device, w, h, TextureFormat::Rgba8Unorm, att);
         let (gb_nd_tex, gb_nd_view)       = mk_tex(&device, w, h, TextureFormat::Rgba8Unorm, att);
-        let (ssao_tex, ssao_view)         = mk_tex(&device, w, h, TextureFormat::Rgba8Unorm, att);
+        // SSAO is inherently low-frequency (it's a soft ambient darkening, not
+        // a sharp-edged effect) — rendering it at half resolution and letting
+        // the composite pass upsample with a linear sampler cuts the 32-tap
+        // fragment shader's invocation count to ~1/4 with no visible loss.
+        let (ssao_w, ssao_h) = (w.max(2) / 2, h.max(2) / 2);
+        let (ssao_tex, ssao_view)         = mk_tex(&device, ssao_w, ssao_h, TextureFormat::Rgba8Unorm, att);
         let (composite_out_tex, composite_out_view) = mk_tex(&device, w, h, TextureFormat::Rgba8Unorm, att);
         let (accum_a_tex, accum_a_view)   = mk_tex(&device, w, h, TextureFormat::Rgba8Unorm, att);
         let (accum_b_tex, accum_b_view)   = mk_tex(&device, w, h, TextureFormat::Rgba8Unorm, att);
@@ -683,7 +693,10 @@ impl Renderer {
                 BindGroupEntry { binding: 0, resource: BindingResource::TextureView(&gb_color_view) },
                 BindGroupEntry { binding: 1, resource: BindingResource::Sampler(&nearest) },
                 BindGroupEntry { binding: 2, resource: BindingResource::TextureView(&ssao_view) },
-                BindGroupEntry { binding: 3, resource: BindingResource::Sampler(&nearest) },
+                // linear, not nearest: ssao_view is now half-resolution, and a
+                // bilinear upsample keeps the (inherently soft) AO term from
+                // showing blocky 2x2 texel edges at full composite resolution.
+                BindGroupEntry { binding: 3, resource: BindingResource::Sampler(&linear) },
                 BindGroupEntry { binding: 4, resource: glitch_buf.as_entire_binding() },
             ],
         });
@@ -884,6 +897,7 @@ impl Renderer {
             cam_eye: init_eye, cam_look: init_look,
             tgt_eye: init_eye, tgt_look: init_look,
             aspect,
+            cam_right: Vec3::X, cam_up: Vec3::Y,
             particles: ParticleSystem::new(Rng::new(seed)),
             frame: 0,
         })
@@ -958,16 +972,18 @@ impl Renderer {
         let vp     = proj * view;
 
         // Rows of view matrix rotation part = camera axes in world space (column-major)
-        let cam_right = Vec3::new(view.x_axis.x, view.y_axis.x, view.z_axis.x);
-        let cam_up    = Vec3::new(view.x_axis.y, view.y_axis.y, view.z_axis.y);
+        // Cached on self so render()'s particle billboarding can reuse them
+        // instead of recomputing look_at_rh a second time this frame.
+        self.cam_right = Vec3::new(view.x_axis.x, view.y_axis.x, view.z_axis.x);
+        self.cam_up    = Vec3::new(view.x_axis.y, view.y_axis.y, view.z_axis.y);
 
         let u = SceneUniform {
             view_proj:   vp.to_cols_array_2d(),
             view:        view.to_cols_array_2d(),
             proj:        proj.to_cols_array_2d(),
             eye:         self.cam_eye, _p0: 0.0,
-            cam_right:   cam_right.to_array(), _p1: 0.0,
-            cam_up:      cam_up.to_array(),    _p2: 0.0,
+            cam_right:   self.cam_right.to_array(), _p1: 0.0,
+            cam_up:      self.cam_up.to_array(),    _p2: 0.0,
             ambient:     [0.005, 0.005, 0.008], _p3: 0.0,
             sun_dir:     [0.6, 0.85, 0.5],     _p4: 0.0,
             sun_color:   [0.18, 0.16, 0.13],   _p5: 0.0,
@@ -989,19 +1005,13 @@ impl Renderer {
         self.frame = self.frame.wrapping_add(1);
         self.update_uniform();
 
-        // update + upload particles
+        // update + upload particles — cam_right/cam_up were already computed
+        // by update_uniform() above, no need to redo the view matrix here.
         self.particles.update();
-        let cam_right = {
-            let eye  = Vec3::from_array(self.cam_eye);
-            let look = Vec3::from_array(self.cam_look);
-            let v = Mat4::look_at_rh(eye, look, Vec3::Y);
-            (Vec3::new(v.x_axis.x, v.y_axis.x, v.z_axis.x),
-             Vec3::new(v.x_axis.y, v.y_axis.y, v.z_axis.y))
-        };
-        let pverts = self.particles.to_verts(cam_right.0, cam_right.1);
-        let pcount = pverts.len() as u32;
-        if !pverts.is_empty() {
-            self.queue.write_buffer(&self.particle_buf, 0, bytemuck::cast_slice(&pverts));
+        self.particles.update_verts(self.cam_right, self.cam_up);
+        let pcount = self.particles.verts.len() as u32;
+        if !self.particles.verts.is_empty() {
+            self.queue.write_buffer(&self.particle_buf, 0, bytemuck::cast_slice(&self.particles.verts));
         }
 
         let output = match self.surface.get_current_texture() {
