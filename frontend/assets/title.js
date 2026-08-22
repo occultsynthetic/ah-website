@@ -2,7 +2,7 @@
     'use strict';
 
     // ── State ────────────────────────────────────────────────────────
-    var name   = 'MEGASTRUCTURE';
+    var name   = 'MEGASTRUCTURE.SYS';
     var pos    = name.length;
     var active = false;
     var currentBodyEgg = null;
@@ -87,7 +87,9 @@
     };
 
     function checkEgg() {
-        var fn = EGGS[name.toUpperCase()];
+        var upper = name.toUpperCase();
+        var key   = upper.endsWith('.SYS') ? upper.slice(0, -4) : upper;
+        var fn = EGGS[key];
         if (fn) fn();
     }
 
