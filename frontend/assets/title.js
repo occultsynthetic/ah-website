@@ -109,70 +109,78 @@
         if (el) el.textContent = text;
     }
 
-    // ── Keyboard ─────────────────────────────────────────────────────
+    // ── Text entry ───────────────────────────────────────────────────
+    // A real, standard <input> drives editing instead of a hand-rolled
+    // document-level keydown listener. That gets native caret/selection,
+    // physical AND mobile virtual keyboards, IME, and paste for free —
+    // the previous approach only worked with a physical keyboard, since
+    // mobile browsers only surface a virtual keyboard for a genuinely
+    // focused, editable element. The input is visually invisible; the
+    // existing before/cursor/after spans still do the on-page rendering.
+    var shadowInput = document.createElement('input');
+    shadowInput.type = 'text';
+    shadowInput.autocomplete = 'off';
+    shadowInput.autocapitalize = 'characters';
+    shadowInput.spellcheck = false;
+    shadowInput.setAttribute('aria-hidden', 'true');
+    shadowInput.tabIndex = -1;
+    // Off-screen + near-zero opacity (not exactly 0) + real dimensions,
+    // rather than 1x1px/opacity:0 — some iOS Safari versions treat a
+    // focused opacity:0/1px element as non-interactive and refuse to
+    // raise the keyboard for it.
+    shadowInput.style.cssText =
+        'position:fixed;top:0;left:-9999px;width:200px;height:2em;opacity:0.01;' +
+        'border:none;padding:0;margin:0;outline:none;background:transparent;' +
+        'color:transparent;caret-color:transparent;font-size:16px;pointer-events:none;';
+    document.body.appendChild(shadowInput);
 
-    document.addEventListener('keydown', function (e) {
-        if (!active) return;
+    function sanitize(v) {
+        return v.toUpperCase().replace(/[^A-Z0-9_\-]/g, '');
+    }
 
-        var consumed = true;
-        switch (e.key) {
-            case 'ArrowLeft':
-                pos = Math.max(0, pos - 1);
-                break;
-            case 'ArrowRight':
-                pos = Math.min(name.length, pos + 1);
-                break;
-            case 'Home':
-                pos = 0;
-                break;
-            case 'End':
-                pos = name.length;
-                break;
-            case 'Backspace':
-                if (pos > 0) {
-                    name = name.slice(0, pos - 1) + name.slice(pos);
-                    pos--;
-                }
-                break;
-            case 'Delete':
-                if (pos < name.length) {
-                    name = name.slice(0, pos) + name.slice(pos + 1);
-                }
-                break;
-            case 'Enter': {
-                var eUp  = name.toUpperCase();
-                var eKey = eUp.endsWith('.SYS') ? eUp.slice(0, -4) : eUp;
-                if (eKey === 'AUDIO' && window.__audioSys) {
-                    window.__audioSys.show();
-                } else {
-                    consumed = false;
-                }
-                break;
-            }
-            case 'Escape':
-                deactivate();
-                consumed = false;
-                break;
-            default:
-                if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
-                    var ch = e.key.toUpperCase();
-                    if (/[A-Z0-9_\-]/.test(ch)) {
-                        name = name.slice(0, pos) + ch + name.slice(pos);
-                        pos++;
-                        checkEgg();
-                    }
-                } else {
-                    consumed = false;
-                }
+    shadowInput.addEventListener('input', function () {
+        var raw = shadowInput.value;
+        var clean = sanitize(raw);
+        if (clean !== raw) {
+            var cleanUpToSel = sanitize(raw.slice(0, shadowInput.selectionStart)).length;
+            shadowInput.value = clean;
+            shadowInput.setSelectionRange(cleanUpToSel, cleanUpToSel);
         }
-        if (consumed) e.preventDefault();
+        name = shadowInput.value;
+        pos  = shadowInput.selectionStart;
+        checkEgg();
         render();
     });
+
+    // Arrow/Home/End move the caret without firing 'input' — resync after.
+    shadowInput.addEventListener('keyup', function () {
+        pos = shadowInput.selectionStart;
+        render();
+    });
+
+    shadowInput.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            var eUp  = name.toUpperCase();
+            var eKey = eUp.endsWith('.SYS') ? eUp.slice(0, -4) : eUp;
+            if (eKey === 'AUDIO' && window.__audioSys) {
+                window.__audioSys.show();
+            }
+        } else if (e.key === 'Escape') {
+            deactivate();
+        }
+    });
+
+    shadowInput.addEventListener('blur', deactivate);
 
     // ── Activation ───────────────────────────────────────────────────
 
     function activate() {
+        if (active) { shadowInput.focus(); return; }
         active = true;
+        shadowInput.value = name;
+        shadowInput.focus();
+        shadowInput.setSelectionRange(pos, pos);
         ['sys-title-splash', 'sys-title-nav'].forEach(function (id) {
             var el = document.getElementById(id);
             if (el) el.classList.add('sys-focused');
@@ -180,7 +188,9 @@
     }
 
     function deactivate() {
+        if (!active) return;
         active = false;
+        shadowInput.blur();
         ['sys-title-splash', 'sys-title-nav'].forEach(function (id) {
             var el = document.getElementById(id);
             if (el) el.classList.remove('sys-focused');
@@ -194,11 +204,6 @@
             e.stopPropagation();
             activate();
         });
-    });
-
-    document.addEventListener('click', function (e) {
-        var inside = e.target.closest && e.target.closest('#sys-title-splash, #sys-title-nav');
-        if (!inside) deactivate();
     });
 
     render();
