@@ -135,6 +135,25 @@
     // Mobile: override the HTML default of ONLINE
     if (isMobile) setAudioStatus(false);
 
+    // The AUDIO.SYS terminal is normally opened by clicking the page
+    // title and typing "AUDIO" via physical keydown events — there's no
+    // touch-friendly path into that on a real phone/tablet with no
+    // keyboard. Reveal a direct tap target on mobile instead.
+    if (isMobile) {
+        var mobileTrigger = document.getElementById('audio-sys-mobile-trigger');
+        if (mobileTrigger) {
+            mobileTrigger.hidden = false;
+            mobileTrigger.addEventListener('click', function () {
+                if (window.__music && !audioInitialized) {
+                    window.__music.init();
+                    audioInitialized = true;
+                    setAudioStatus(true);
+                }
+                if (window.__audioSys) window.__audioSys.show();
+            });
+        }
+    }
+
     // Click audio-status to toggle play / pause
     (function () {
         var el = document.getElementById('audio-status');
