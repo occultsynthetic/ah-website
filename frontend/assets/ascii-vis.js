@@ -128,7 +128,7 @@ window.__asciiVis = (function () {
         canvas.height = h;
         glowCanvas.width  = w;
         glowCanvas.height = h;
-        ctx2d.font = '14px "IBMPlexMonoText","Courier New",Courier,monospace';
+        ctx2d.font = '14px "IBMPlexMono","Courier New",Courier,monospace';
         var mw = ctx2d.measureText('M').width;
         CW   = Math.max(8, Math.ceil(mw));
         CH   = Math.round(CW * 1.72);
@@ -247,7 +247,7 @@ window.__asciiVis = (function () {
         var trailAlpha = 0.88 - Math.min(0.34, energy * 0.30 + flashAmt * 0.22);
         ctx2d.fillStyle = 'rgba(0,0,0,' + trailAlpha.toFixed(3) + ')';
         ctx2d.fillRect(0, 0, canvas.width, canvas.height);
-        ctx2d.font = '14px "IBMPlexMonoText","Courier New",Courier,monospace';
+        ctx2d.font = '14px "IBMPlexMono","Courier New",Courier,monospace';
         ctx2d.textBaseline = 'top';
 
         var curArt = ART[artIdx];
@@ -267,7 +267,7 @@ window.__asciiVis = (function () {
 
         // hint text so the user knows how to close
         ctx2d.fillStyle = 'rgba(255,255,255,0.22)';
-        ctx2d.font = '10px "IBMPlexMonoText","Courier New",Courier,monospace';
+        ctx2d.font = '10px "IBMPlexMono","Courier New",Courier,monospace';
         ctx2d.textBaseline = 'bottom';
         ctx2d.fillText('// ESC TO STOP', 6, canvas.height - 3);
 
