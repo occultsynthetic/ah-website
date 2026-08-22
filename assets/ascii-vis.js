@@ -80,18 +80,22 @@ window.__asciiVis = (function () {
     //                plus a CRT-phosphor bleed between neighbouring glyphs.
     var container = document.getElementById('audio-sys-out');
 
+    // `position:fixed` + a rect synced from getBoundingClientRect(), rather
+    // than `position:absolute` inset to the container: #audio-sys-out
+    // scrolls (overflow-y:auto) and auto-scrolls to bottom on every new
+    // line, which would carry an absolutely-positioned (i.e. scrolls-with-
+    // content) canvas pinned at the top of that content out of view.
+    // Viewport-fixed coordinates are immune to the container's own scroll.
     var canvas = document.createElement('canvas');
     canvas.id  = 'ascii-vis-canvas';
     canvas.style.cssText =
-        'position:absolute;top:0;left:0;width:100%;height:100%;' +
-        'z-index:5;display:none;pointer-events:none;background:#000;';
+        'position:fixed;z-index:5;display:none;pointer-events:none;background:#000;';
     container.appendChild(canvas);
 
     var glowCanvas = document.createElement('canvas');
     glowCanvas.id  = 'ascii-vis-glow';
     glowCanvas.style.cssText =
-        'position:absolute;top:0;left:0;width:100%;height:100%;' +
-        'z-index:6;display:none;pointer-events:none;' +
+        'position:fixed;z-index:6;display:none;pointer-events:none;' +
         'mix-blend-mode:screen;opacity:0.9;filter:blur(3px) saturate(1.35);';
     container.appendChild(glowCanvas);
 
@@ -101,10 +105,25 @@ window.__asciiVis = (function () {
     var COLS = 0, ROWS = 0;
     var rowShifts = [];
 
-    function resize() {
+    function syncRect() {
         var rect = container.getBoundingClientRect();
+        var top  = Math.round(rect.top)  + 'px';
+        var left = Math.round(rect.left) + 'px';
+        canvas.style.top  = top;
+        canvas.style.left = left;
+        glowCanvas.style.top  = top;
+        glowCanvas.style.left = left;
+        return rect;
+    }
+
+    function resize() {
+        var rect = syncRect();
         var w = Math.max(1, Math.round(rect.width));
         var h = Math.max(1, Math.round(rect.height));
+        canvas.style.width  = w + 'px';
+        canvas.style.height = h + 'px';
+        glowCanvas.style.width  = w + 'px';
+        glowCanvas.style.height = h + 'px';
         canvas.width  = w;
         canvas.height = h;
         glowCanvas.width  = w;
@@ -159,6 +178,8 @@ window.__asciiVis = (function () {
         rafId = requestAnimationFrame(loop);
         if (ts - lastTs < FRAME_MS) return;
         lastTs = ts;
+
+        syncRect();
 
         // ── Fetch audio frequency data ────────────────────────────────
         var an   = window.__music && window.__music.getAnalyser
