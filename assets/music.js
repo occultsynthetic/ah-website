@@ -391,47 +391,73 @@ window.__music = (function () {
         for (i = 0; i < grv.g.length; i++) triggerGhost(barT + grv.g[i][0]*DSTEP, grv.g[i][1]);
     }
 
-    // ── Swarmatron — 9 voices, mixed waveforms, per-voice tremolo + detune LFO,
-    //    chord-aware: each voice stores its interval relative to root and glides
-    //    to the new pitch whenever setChordState fires.
+    // ── Swarmatron — structural modes (bloom/ascent/exhale/drift), pad layer +
+    //    melodic layer that phrases through scale tones with portamento.
+    //    Pad voices are chord-tracked (swarmOscs); melodic voices are not —
+    //    they keep their scheduled phrase through chord changes.
     function triggerSwarm(when, dur) {
-        var NUM = 9, SPREAD = 34;
-        var WTYPES   = ['sawtooth','sawtooth','sawtooth','sawtooth','square','square','square','triangle','triangle'];
-        var TREM_HZ  = [0.11, 0.17, 0.13, 0.21, 0.09, 0.15, 0.19, 0.12, 0.16];
-        var TREM_DEP = [0.08, 0.12, 0.06, 0.15, 0.10, 0.07, 0.13, 0.09, 0.11];
+        var sc    = SCALES[curChord ? curChord.sc : 'dorian'];
+        var scLen = sc.length;
+        var root  = curRoot;
+        var iv    = curChord ? curChord.iv : [0, 7, 10];
 
+        var mRng = Math.random();
+        var mode = mRng < 0.28 ? 'bloom'
+                 : mRng < 0.55 ? 'drift'
+                 : mRng < 0.78 ? 'ascent'
+                 : 'exhale';
+
+        // Master gain — shape varies per mode to drive dynamics
+        var PEAK = 0.110;
         var masterG = ctx.createGain();
         masterG.gain.setValueAtTime(0, when);
-        masterG.gain.linearRampToValueAtTime(0.169, when + 1.4);
-        masterG.gain.setValueAtTime(0.169, when + dur - 1.4);
-        masterG.gain.exponentialRampToValueAtTime(0.001, when + dur);
         masterG.connect(swarmFilt);
 
-        var iv = curChord ? curChord.iv : [0, 7, 10];
+        if (mode === 'bloom') {
+            // Slow build toward tension peak, then release
+            masterG.gain.linearRampToValueAtTime(PEAK * 0.35, when + dur * 0.22);
+            masterG.gain.linearRampToValueAtTime(PEAK,        when + dur * 0.65);
+            masterG.gain.setValueAtTime(PEAK,                 when + dur * 0.84);
+            masterG.gain.exponentialRampToValueAtTime(0.001,  when + dur);
+        } else if (mode === 'ascent') {
+            // Rises quickly, holds dissonant peak, cuts off
+            masterG.gain.linearRampToValueAtTime(PEAK * 0.55, when + dur * 0.12);
+            masterG.gain.linearRampToValueAtTime(PEAK,        when + dur * 0.72);
+            masterG.gain.exponentialRampToValueAtTime(0.001,  when + dur * 0.97);
+        } else if (mode === 'exhale') {
+            // Appears present, decays away
+            masterG.gain.linearRampToValueAtTime(PEAK,        when + dur * 0.10);
+            masterG.gain.linearRampToValueAtTime(PEAK * 0.28, when + dur * 0.84);
+            masterG.gain.exponentialRampToValueAtTime(0.001,  when + dur);
+        } else { // drift
+            // Quiet and constant — background texture
+            masterG.gain.linearRampToValueAtTime(PEAK * 0.70, when + 1.4);
+            masterG.gain.setValueAtTime(PEAK * 0.70,          when + dur - 1.0);
+            masterG.gain.exponentialRampToValueAtTime(0.001,  when + dur);
+        }
 
-        for (var si = 0; si < NUM; si++) {
-            (function (idx) {
-                // Distribute voices across chord tones in three octave registers
-                var relSemis = iv[idx % iv.length] + (idx < 3 ? 0 : (idx < 6 ? 12 : -12));
-                var detune   = (idx / (NUM - 1) - 0.5) * SPREAD;
+        // ── PAD LAYER: 4 voices on chord tones (chord-tracked via swarmOscs) ──
+        var PAD_TYPES = ['sawtooth', 'square', 'triangle', 'sawtooth'];
+        var PAD_DET   = [-20, +20, +5, -8];
 
+        for (var pi = 0; pi < 4; pi++) {
+            (function (i) {
+                var relSemis = iv[i % iv.length] + (i < 2 ? 0 : 12);
                 var osc = ctx.createOscillator();
-                osc.type = WTYPES[idx];
-                osc.frequency.value = mtof(curRoot + relSemis);
-                osc.detune.value = detune;
+                osc.type = PAD_TYPES[i];
+                osc.frequency.value = mtof(root + relSemis);
+                osc.detune.value = PAD_DET[i];
 
-                // Slow detune LFO — pitch shimmer
                 var lfo = ctx.createOscillator(); var lfoG = ctx.createGain();
-                lfo.frequency.value = 0.04 + Math.random() * 0.10;
-                lfoG.gain.value = 1.5 + Math.random() * 2.2;
+                lfo.frequency.value = 0.05 + Math.random() * 0.09;
+                lfoG.gain.value = 1.5 + Math.random() * 2.0;
                 lfo.connect(lfoG); lfoG.connect(osc.detune);
                 lfo.start(when); lfo.stop(when + dur + 0.2);
 
-                // Per-voice tremolo (amplitude LFO)
                 var tremLfo = ctx.createOscillator(); var tremG = ctx.createGain();
-                tremLfo.frequency.value = TREM_HZ[idx]; tremG.gain.value = TREM_DEP[idx];
+                tremLfo.frequency.value = 0.09 + Math.random() * 0.13;
+                tremG.gain.value = 0.07 + Math.random() * 0.09;
                 tremLfo.start(when); tremLfo.stop(when + dur + 0.2);
-
                 var vGain = ctx.createGain(); vGain.gain.value = 1.0;
                 tremLfo.connect(tremG); tremG.connect(vGain.gain);
 
@@ -440,7 +466,59 @@ window.__music = (function () {
 
                 swarmOscs.push({ osc: osc, relSemis: relSemis, stopAt: when + dur + 0.2 });
                 osc.onended = function () { try { vGain.disconnect(); osc.disconnect(); } catch (e) {} };
-            })(si);
+            })(pi);
+        }
+
+        // ── MELODIC LAYER: portamento phrases through scale degrees ──
+        // NOT added to swarmOscs — keeps its phrase through chord changes.
+        // noteIdxs = scale degree indices (0=root 1=2nd 2=3rd 3=4th 4=5th 5=6th 6=7th)
+        // glideFrac = fraction of step duration used for the portamento slide
+        function melVoice(waveType, octOff, detCents, noteIdxs, glideFrac) {
+            var step = dur / noteIdxs.length;
+            var osc = ctx.createOscillator();
+            osc.type = waveType;
+            osc.detune.value = detCents;
+            osc.frequency.setValueAtTime(mtof(root + sc[noteIdxs[0] % scLen] + octOff), when);
+
+            // Gentle vibrato for melodic expression
+            var vib = ctx.createOscillator(); var vibG = ctx.createGain();
+            vib.frequency.value = 4.5 + Math.random() * 1.5;
+            vibG.gain.value = 3 + Math.random() * 4;
+            vib.connect(vibG); vibG.connect(osc.detune);
+            vib.start(when); vib.stop(when + dur + 0.2);
+
+            // Hold at each pitch, then glide over glideFrac of the step
+            for (var ni = 1; ni < noteIdxs.length; ni++) {
+                var noteT    = when + ni * step;
+                var prevFreq = mtof(root + sc[noteIdxs[ni - 1] % scLen] + octOff);
+                var newFreq  = mtof(root + sc[noteIdxs[ni]     % scLen] + octOff);
+                osc.frequency.setValueAtTime(prevFreq, noteT);
+                osc.frequency.exponentialRampToValueAtTime(newFreq, noteT + step * glideFrac);
+            }
+
+            var g = ctx.createGain(); g.gain.value = 1.0;
+            osc.connect(g); g.connect(masterG);
+            osc.start(when); osc.stop(when + dur + 0.2);
+            osc.onended = function () { try { g.disconnect(); osc.disconnect(); } catch (e) {} };
+        }
+
+        if (mode === 'bloom') {
+            // Rises through scale, reaches minor 7th (tension), settles to 6th
+            melVoice('triangle', 12, +3, [0, 1, 2, 4, 6, 5], 0.60);
+            // Counter voice, fills harmony below
+            melVoice('sawtooth',  0, -5, [4, 5, 6, 5, 3, 4], 0.65);
+        } else if (mode === 'ascent') {
+            // Climbs scale, holds at dissonant peak
+            melVoice('sawtooth', 12, +2, [0, 2, 4, 5, 6, 6], 0.55);
+            // High register voice pushing at the ceiling
+            melVoice('square',   24, -4, [3, 5, 6, 6, 5, 4], 0.60);
+        } else if (mode === 'exhale') {
+            // Descends to root — releases tension
+            melVoice('triangle', 12, +2, [6, 5, 4, 2, 1, 0], 0.65);
+            melVoice('sawtooth',  0, -3, [5, 4, 3, 2, 1, 0], 0.70);
+        } else { // drift
+            // Slow wander, never strays far from root
+            melVoice('triangle', 12, +5, [0, 2, 1, 3, 2, 0], 0.75);
         }
 
         var cleanMs = Math.max((when + dur + 0.3 - ctx.currentTime) * 1000, 200);
