@@ -143,6 +143,10 @@ window.__music = (function () {
 
     var drumBus, drumNoiseBuf;
     var drumActive = false;  // gates drum scheduling until fade-in begins
+    var snareDelay, snareDelayFB, snareDelayOut;
+    var swarmFilt;
+    var distCurve;
+    var swarmCountdown = 7;
 
     function mtof(m) { return 440 * Math.pow(2, (m - 69) / 12); }
     function inArr(a, v) { for (var i=0;i<a.length;i++) if(a[i]===v)return i; return -1; }
@@ -224,6 +228,30 @@ window.__music = (function () {
         drumNoiseBuf = ctx.createBuffer(1, Math.ceil(ctx.sampleRate), ctx.sampleRate);
         var dnd = drumNoiseBuf.getChannelData(0);
         for (var i = 0; i < dnd.length; i++) dnd[i] = Math.random() * 2 - 1;
+
+        // Snare delay bus — Massive Attack dotted-8th echo trail
+        snareDelay    = ctx.createDelay(2.0); snareDelay.delayTime.value = STEP * 1.5;
+        snareDelayFB  = ctx.createGain();     snareDelayFB.gain.value    = 0.32;
+        snareDelayOut = ctx.createGain();     snareDelayOut.gain.value   = 0.68;
+        snareDelay.connect(snareDelayFB); snareDelayFB.connect(snareDelay);
+        snareDelay.connect(snareDelayOut); snareDelayOut.connect(drumBus);
+
+        // Swarmatron bus — mostly verb for that distant spatial quality
+        swarmFilt = ctx.createBiquadFilter();
+        swarmFilt.type = 'lowpass'; swarmFilt.frequency.value = 1050; swarmFilt.Q.value = 0.75;
+        var swarmDry = ctx.createGain(); swarmDry.gain.value = 0.14;
+        swarmFilt.connect(verbSend);
+        swarmFilt.connect(swarmDry); swarmDry.connect(comp);
+
+        // Distortion waveshaper curve shared by all glitch bursts
+        distCurve = (function () {
+            var n = 512, c = new Float32Array(n), k = 200;
+            for (var i = 0; i < n; i++) {
+                var x = i * 2 / n - 1;
+                c[i] = (Math.PI + k) * x / (Math.PI + k * Math.abs(x));
+            }
+            return c;
+        })();
     }
 
     // ── Chord state ──────────────────────────────────────────────────
@@ -304,6 +332,12 @@ window.__music = (function () {
         tg.gain.exponentialRampToValueAtTime(0.001, when + 0.042);
         tosc.connect(tg); tg.connect(drumBus);
         tosc.start(when); tosc.stop(when + 0.06);
+        // ~30% of hits get a dotted-8th Massive Attack echo trail
+        if (snareDelay && Math.random() < 0.30) {
+            var dSend = ctx.createGain(); dSend.gain.value = vel * 0.52;
+            ng.connect(dSend); dSend.connect(snareDelay);
+            setTimeout(function () { try { dSend.disconnect(); } catch (e) {} }, 4500);
+        }
         src.onended  = function(){try{ng.disconnect();nf.disconnect();src.disconnect();}catch(e){}};
         tosc.onended = function(){try{tg.disconnect();tosc.disconnect();}catch(e){}};
     }
@@ -342,6 +376,96 @@ window.__music = (function () {
         for (i = 0; i < grv.s.length; i++) triggerSnare(barT + grv.s[i][0]*DSTEP, grv.s[i][1]);
         for (i = 0; i < grv.h.length; i++) triggerHat(barT   + grv.h[i][0]*DSTEP, grv.h[i][1]);
         for (i = 0; i < grv.g.length; i++) triggerGhost(barT + grv.g[i][0]*DSTEP, grv.g[i][1]);
+    }
+
+    // ── Swarmatron — 7 detuned sawtooths, each with a slow independent LFO ──
+    // Gives that thick, slightly out-of-tune NIN / Year Zero ambient texture.
+    function triggerSwarm(when, dur) {
+        var NUM = 7, SPREAD = 26;
+        var masterG = ctx.createGain();
+        masterG.gain.setValueAtTime(0, when);
+        masterG.gain.linearRampToValueAtTime(0.13, when + 1.0);
+        masterG.gain.setValueAtTime(0.13, when + dur - 1.1);
+        masterG.gain.exponentialRampToValueAtTime(0.001, when + dur);
+        masterG.connect(swarmFilt);
+        var baseFreq = mtof(curRoot);
+        for (var si = 0; si < NUM; si++) {
+            (function (idx) {
+                var detune = (idx / (NUM - 1) - 0.5) * SPREAD;
+                var lfoHz  = 0.05 + Math.random() * 0.09;
+                var lfoAmt = 1.0  + Math.random() * 1.8;
+                var osc = ctx.createOscillator();
+                osc.type = 'sawtooth'; osc.frequency.value = baseFreq; osc.detune.value = detune;
+                var lfo = ctx.createOscillator(); var lfoG = ctx.createGain();
+                lfo.frequency.value = lfoHz; lfoG.gain.value = lfoAmt;
+                lfo.connect(lfoG); lfoG.connect(osc.detune);
+                lfo.start(when); lfo.stop(when + dur + 0.1);
+                osc.connect(masterG); osc.start(when); osc.stop(when + dur + 0.1);
+            })(si);
+        }
+        var cleanMs = Math.max((when + dur + 0.3 - ctx.currentTime) * 1000, 200);
+        setTimeout(function () { try { masterG.disconnect(); } catch (e) {} }, cleanMs);
+    }
+
+    // ── Year Zero glitch bursts — three flavours ──────────────────────
+    function triggerGlitch(when) {
+        var type = Math.random();
+        if (type < 0.38) {
+            // A: digital screech — high bandpass noise + heavy distortion
+            var offA = Math.random() * 0.5;
+            var srcA = ctx.createBufferSource(); srcA.buffer = drumNoiseBuf;
+            var wsA  = ctx.createWaveShaper(); wsA.curve = distCurve;
+            var bpA  = ctx.createBiquadFilter();
+            bpA.type = 'bandpass';
+            bpA.frequency.setValueAtTime(5400, when);
+            bpA.frequency.exponentialRampToValueAtTime(1600, when + 0.09);
+            bpA.Q.value = 4.5;
+            var gA = ctx.createGain();
+            gA.gain.setValueAtTime(0, when);
+            gA.gain.linearRampToValueAtTime(0.14, when + 0.003);
+            gA.gain.exponentialRampToValueAtTime(0.001, when + 0.10);
+            srcA.connect(wsA); wsA.connect(bpA); bpA.connect(gA); gA.connect(drumBus);
+            srcA.start(when, offA, 0.12);
+            srcA.onended = function () { try { gA.disconnect(); bpA.disconnect(); wsA.disconnect(); srcA.disconnect(); } catch (e) {} };
+
+        } else if (type < 0.72) {
+            // B: stutter sequence — 3-5 micro-hits slightly off the grid
+            var count = 3 + Math.floor(Math.random() * 3);
+            var gap   = DSTEP * (0.35 + Math.random() * 0.50);
+            for (var k = 0; k < count; k++) {
+                (function (ki) {
+                    var t   = when + ki * gap + (Math.random() * 0.010 - 0.005);
+                    var offB = Math.random() * 0.6;
+                    var srcB = ctx.createBufferSource(); srcB.buffer = drumNoiseBuf;
+                    var wsB  = ctx.createWaveShaper(); wsB.curve = distCurve;
+                    var bpB  = ctx.createBiquadFilter();
+                    bpB.type = 'bandpass'; bpB.frequency.value = 1800 + Math.random() * 3400; bpB.Q.value = 5.5;
+                    var gB  = ctx.createGain();
+                    var vB  = 0.09 * Math.pow(0.78, ki);
+                    gB.gain.setValueAtTime(0, t);
+                    gB.gain.linearRampToValueAtTime(vB, t + 0.002);
+                    gB.gain.exponentialRampToValueAtTime(0.001, t + 0.030);
+                    srcB.connect(wsB); wsB.connect(bpB); bpB.connect(gB); gB.connect(drumBus);
+                    srcB.start(t, offB, 0.04);
+                    srcB.onended = function () { try { gB.disconnect(); bpB.disconnect(); wsB.disconnect(); srcB.disconnect(); } catch (e) {} };
+                })(k);
+            }
+
+        } else {
+            // C: industrial sub-rumble — distorted low-frequency body hit
+            var offC = Math.random() * 0.5;
+            var srcC = ctx.createBufferSource(); srcC.buffer = drumNoiseBuf;
+            var wsC  = ctx.createWaveShaper(); wsC.curve = distCurve;
+            var lpC  = ctx.createBiquadFilter();
+            lpC.type = 'lowpass'; lpC.frequency.value = 340; lpC.Q.value = 2.2;
+            var gC   = ctx.createGain();
+            gC.gain.setValueAtTime(0, when);
+            gC.gain.linearRampToValueAtTime(0.20, when + 0.007);
+            gC.gain.exponentialRampToValueAtTime(0.001, when + 0.22);
+            srcC.connect(wsC); wsC.connect(lpC); lpC.connect(gC); gC.connect(comp);
+            srcC.start(when, offC, 0.26);
+            srcC.onended = function () { try { gC.disconnect(); lpC.disconnect(); wsC.disconnect(); srcC.disconnect(); } catch (e) {} };
+        }
     }
 
     // ── Melody ────────────────────────────────────────────────────────
@@ -429,9 +553,21 @@ window.__music = (function () {
     // ── Lookahead scheduler ───────────────────────────────────────────
     function tick() {
         while (nextStepT < ctx.currentTime + AHEAD) {
-            // Bar start: schedule drums and optionally a melody phrase
+            // Bar start: drums, glitch events, swarmatron, melody
             if (stepInBar === 0) {
-                if (drumActive) schedDrumBar(nextStepT);
+                if (drumActive) {
+                    schedDrumBar(nextStepT);
+                    // Year Zero glitch burst — ~22% per bar, offset slightly into the bar
+                    if (Math.random() < 0.22) {
+                        triggerGlitch(nextStepT + Math.random() * STEP * 1.5);
+                    }
+                    // Swarmatron — fires every 5-9 bars
+                    if (--swarmCountdown <= 0) {
+                        var barDur = curTmpl.n * STEP;
+                        triggerSwarm(nextStepT, barDur * (2 + Math.floor(Math.random() * 2)));
+                        swarmCountdown = 5 + Math.floor(Math.random() * 5);
+                    }
+                }
                 if (nextStepT >= melNextT) schedMelPhrase(nextStepT);
             }
 
