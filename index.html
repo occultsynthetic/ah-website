@@ -134,11 +134,15 @@
         </div>
     </div>
 
-    <script src="assets/music.js"></script>
-    <script src="assets/scramble.js"></script>
-    <script src="assets/title.js"></script>
-    <script src="assets/audio-sys.js"></script>
-    <script src="assets/ascii-vis.js"></script>
+    <!-- Cache-bust: unlike Trunk's data-trunk assets (css/wasm), these
+         plain script tags keep the same URL every deploy, so a browser
+         or CDN cache can silently serve a stale copy after a redeploy.
+         Bump this query string whenever any of these files change. -->
+    <script src="assets/music.js?v=2"></script>
+    <script src="assets/scramble.js?v=2"></script>
+    <script src="assets/title.js?v=2"></script>
+    <script src="assets/audio-sys.js?v=2"></script>
+    <script src="assets/ascii-vis.js?v=2"></script>
 
 <script type="module">
 import init, * as bindings from '/ah-website/frontend-9bf592f3fa289828.js';
