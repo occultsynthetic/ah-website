@@ -611,6 +611,156 @@ body.egg-genesis #notes-panel {
 
 /* ── mobile ───────────────────────────────────────────────── */
 
+/* ── Audio-sys transition (pixelation crunch) ───────────────────── */
+
+body.into-audio-sys #canvas,
+body.into-audio-sys nav#menu,
+body.into-audio-sys .content-panel,
+body.into-audio-sys #notes-panel {
+    animation: asys-crunch-out 0.44s steps(7, end) forwards;
+    pointer-events: none;
+}
+
+body.audio-sys-active #canvas,
+body.audio-sys-active nav#menu,
+body.audio-sys-active .content-panel,
+body.audio-sys-active #notes-panel {
+    opacity: 0;
+    pointer-events: none;
+}
+
+body.from-audio-sys #canvas,
+body.from-audio-sys nav#menu {
+    animation: asys-crunch-in 0.44s steps(7, end) forwards;
+}
+
+@keyframes asys-crunch-out {
+    0%   { opacity: 1; filter: none; }
+    20%  { filter: brightness(1.7) contrast(2.5) saturate(0); }
+    55%  { filter: brightness(0.4) contrast(4) blur(1px) saturate(0); opacity: 0.5; }
+    85%  { filter: brightness(0.08) blur(4px); opacity: 0.1; }
+    100% { filter: brightness(0) blur(8px); opacity: 0; }
+}
+
+@keyframes asys-crunch-in {
+    0%   { opacity: 0; filter: brightness(0) blur(8px); }
+    15%  { filter: brightness(0.08) blur(4px); opacity: 0.1; }
+    45%  { filter: brightness(0.4) contrast(4) blur(1px) saturate(0); opacity: 0.5; }
+    80%  { filter: brightness(1.7) contrast(2.5) saturate(0); }
+    100% { opacity: 1; filter: none; }
+}
+
+/* ── Audio-sys overlay ──────────────────────────────────────────── */
+
+#audio-sys {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 150;
+    background: #000;
+    align-items: center;
+    justify-content: center;
+    font-family: 'Courier New', 'Courier', monospace;
+    color: #fff;
+    text-shadow: 0 0 6px rgba(255,255,255,0.65), 0 0 18px rgba(255,255,255,0.25), 0 0 40px rgba(255,255,255,0.08);
+}
+
+#audio-sys.asys-in {
+    animation: asys-overlay-in 0.4s ease-out forwards;
+}
+
+#audio-sys.asys-out {
+    animation: asys-overlay-out 0.35s ease-in forwards;
+}
+
+@keyframes asys-overlay-in {
+    from { opacity: 0; filter: blur(10px) brightness(2.5); }
+    to   { opacity: 1; filter: none; }
+}
+
+@keyframes asys-overlay-out {
+    from { opacity: 1; filter: none; }
+    to   { opacity: 0; filter: blur(10px) brightness(0); }
+}
+
+#audio-sys-inner {
+    width: min(600px, 86vw);
+    padding: 1rem;
+    display: flex;
+    flex-direction: column;
+    max-height: 80vh;
+    line-height: 1.75;
+}
+
+.asys-head {
+    font-size: clamp(14px, 1.7vw, 20px);
+    letter-spacing: 0.1em;
+    margin-bottom: 0.35rem;
+}
+
+.asys-ver {
+    font-size: clamp(10px, 1vw, 12px);
+    color: rgba(255, 255, 255, 0.28);
+    letter-spacing: 0.16em;
+    margin-bottom: 0;
+    text-shadow: none;
+}
+
+.asys-cursor {
+    display: inline-block;
+    animation: blink 1.1s step-end infinite;
+}
+
+.asys-rule {
+    color: rgba(255, 255, 255, 0.22);
+    text-shadow: none;
+    overflow: hidden;
+    white-space: nowrap;
+    margin: 0.85rem 0;
+    letter-spacing: 0;
+    user-select: none;
+}
+
+#audio-sys-out {
+    flex: 1;
+    overflow-y: auto;
+    font-size: clamp(12px, 1.25vw, 16px);
+    min-height: 3em;
+    max-height: 46vh;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255,255,255,0.08) transparent;
+    opacity: 0.76;
+}
+
+.asys-line { letter-spacing: 0.05em; }
+
+.asys-prompt-row {
+    display: flex;
+    align-items: baseline;
+    font-size: clamp(13px, 1.45vw, 17px);
+    margin-top: 0.3rem;
+}
+
+.asys-prompt {
+    color: rgba(255,255,255,0.45);
+    flex-shrink: 0;
+    user-select: none;
+}
+
+#audio-sys-cmd {
+    background: transparent;
+    border: none;
+    outline: none;
+    color: #fff;
+    font-family: 'Courier New', 'Courier', monospace;
+    font-size: inherit;
+    letter-spacing: 0.05em;
+    caret-color: rgba(255,255,255,0.8);
+    text-shadow: 0 0 6px rgba(255,255,255,0.55), 0 0 16px rgba(255,255,255,0.2);
+    width: 100%;
+    text-transform: uppercase;
+}
+
 @media (max-width: 480px) {
     .splash-head { font-size: clamp(14px, 4.5vw, 20px); }
     .splash-body { font-size: clamp(12px, 3.5vw, 15px); }

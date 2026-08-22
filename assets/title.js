@@ -139,6 +139,16 @@
                     name = name.slice(0, pos) + name.slice(pos + 1);
                 }
                 break;
+            case 'Enter': {
+                var eUp  = name.toUpperCase();
+                var eKey = eUp.endsWith('.SYS') ? eUp.slice(0, -4) : eUp;
+                if (eKey === 'AUDIO' && window.__audioSys) {
+                    window.__audioSys.show();
+                } else {
+                    consumed = false;
+                }
+                break;
+            }
             case 'Escape':
                 deactivate();
                 consumed = false;

@@ -144,9 +144,10 @@ window.__music = (function () {
     var drumBus, drumNoiseBuf;
     var drumActive = false;  // gates drum scheduling until fade-in begins
     var snareDelay, snareDelayFB, snareDelayOut;
-    var swarmFilt;
+    var swarmFilt, swarmDelay, swarmDelayFB, swarmDelayOut, swarmVerbSend;
+    var swarmOscs = [];
     var distCurve;
-    var swarmCountdown = 7;
+    var swarmCountdown = 2;
 
     function mtof(m) { return 440 * Math.pow(2, (m - 69) / 12); }
     function inArr(a, v) { for (var i=0;i<a.length;i++) if(a[i]===v)return i; return -1; }
@@ -236,12 +237,19 @@ window.__music = (function () {
         snareDelay.connect(snareDelayFB); snareDelayFB.connect(snareDelay);
         snareDelay.connect(snareDelayOut); snareDelayOut.connect(drumBus);
 
-        // Swarmatron bus — mostly verb for that distant spatial quality
+        // Swarmatron bus — filter → dry + reverb send + dedicated feedback delay
         swarmFilt = ctx.createBiquadFilter();
-        swarmFilt.type = 'lowpass'; swarmFilt.frequency.value = 1050; swarmFilt.Q.value = 0.75;
+        swarmFilt.type = 'lowpass'; swarmFilt.frequency.value = 1400; swarmFilt.Q.value = 0.65;
         var swarmDry = ctx.createGain(); swarmDry.gain.value = 0.14;
-        swarmFilt.connect(verbSend);
         swarmFilt.connect(swarmDry); swarmDry.connect(comp);
+        swarmVerbSend = ctx.createGain(); swarmVerbSend.gain.value = 1.0;
+        swarmFilt.connect(swarmVerbSend); swarmVerbSend.connect(verbSend);
+        swarmDelay    = ctx.createDelay(4.0); swarmDelay.delayTime.value = STEP * 2;
+        swarmDelayFB  = ctx.createGain();     swarmDelayFB.gain.value    = 0.42;
+        swarmDelayOut = ctx.createGain();     swarmDelayOut.gain.value   = 0.38;
+        swarmFilt.connect(swarmDelay);
+        swarmDelay.connect(swarmDelayFB); swarmDelayFB.connect(swarmDelay);
+        swarmDelay.connect(swarmDelayOut); swarmDelayOut.connect(verbSend);
 
         // Distortion waveshaper curve shared by all glitch bursts
         distCurve = (function () {
@@ -261,8 +269,13 @@ window.__music = (function () {
         var iv = def.iv;
         for (var i = 0; i < 3; i++) padFreqs[i] = mtof(curRoot + iv[i % iv.length]);
         if (ctx) {
-            subOsc.frequency.cancelScheduledValues(ctx.currentTime);
-            subOsc.frequency.setTargetAtTime(mtof(curRoot-12), ctx.currentTime, 2.0);
+            var now = ctx.currentTime;
+            subOsc.frequency.cancelScheduledValues(now);
+            subOsc.frequency.setTargetAtTime(mtof(curRoot-12), now, 2.0);
+            swarmOscs = swarmOscs.filter(function(v) { return v.stopAt > now; });
+            swarmOscs.forEach(function(v) {
+                v.osc.frequency.setTargetAtTime(mtof(curRoot + v.relSemis), now, 2.0);
+            });
         }
     }
 
@@ -378,31 +391,58 @@ window.__music = (function () {
         for (i = 0; i < grv.g.length; i++) triggerGhost(barT + grv.g[i][0]*DSTEP, grv.g[i][1]);
     }
 
-    // ── Swarmatron — 7 detuned sawtooths, each with a slow independent LFO ──
-    // Gives that thick, slightly out-of-tune NIN / Year Zero ambient texture.
+    // ── Swarmatron — 9 voices, mixed waveforms, per-voice tremolo + detune LFO,
+    //    chord-aware: each voice stores its interval relative to root and glides
+    //    to the new pitch whenever setChordState fires.
     function triggerSwarm(when, dur) {
-        var NUM = 7, SPREAD = 26;
+        var NUM = 9, SPREAD = 34;
+        var WTYPES   = ['sawtooth','sawtooth','sawtooth','sawtooth','square','square','square','triangle','triangle'];
+        var TREM_HZ  = [0.11, 0.17, 0.13, 0.21, 0.09, 0.15, 0.19, 0.12, 0.16];
+        var TREM_DEP = [0.08, 0.12, 0.06, 0.15, 0.10, 0.07, 0.13, 0.09, 0.11];
+
         var masterG = ctx.createGain();
         masterG.gain.setValueAtTime(0, when);
-        masterG.gain.linearRampToValueAtTime(0.169, when + 1.0);
-        masterG.gain.setValueAtTime(0.169, when + dur - 1.1);
+        masterG.gain.linearRampToValueAtTime(0.169, when + 1.4);
+        masterG.gain.setValueAtTime(0.169, when + dur - 1.4);
         masterG.gain.exponentialRampToValueAtTime(0.001, when + dur);
         masterG.connect(swarmFilt);
-        var baseFreq = mtof(curRoot);
+
+        var iv = curChord ? curChord.iv : [0, 7, 10];
+
         for (var si = 0; si < NUM; si++) {
             (function (idx) {
-                var detune = (idx / (NUM - 1) - 0.5) * SPREAD;
-                var lfoHz  = 0.05 + Math.random() * 0.09;
-                var lfoAmt = 1.0  + Math.random() * 1.8;
+                // Distribute voices across chord tones in three octave registers
+                var relSemis = iv[idx % iv.length] + (idx < 3 ? 0 : (idx < 6 ? 12 : -12));
+                var detune   = (idx / (NUM - 1) - 0.5) * SPREAD;
+
                 var osc = ctx.createOscillator();
-                osc.type = 'sawtooth'; osc.frequency.value = baseFreq; osc.detune.value = detune;
+                osc.type = WTYPES[idx];
+                osc.frequency.value = mtof(curRoot + relSemis);
+                osc.detune.value = detune;
+
+                // Slow detune LFO — pitch shimmer
                 var lfo = ctx.createOscillator(); var lfoG = ctx.createGain();
-                lfo.frequency.value = lfoHz; lfoG.gain.value = lfoAmt;
+                lfo.frequency.value = 0.04 + Math.random() * 0.10;
+                lfoG.gain.value = 1.5 + Math.random() * 2.2;
                 lfo.connect(lfoG); lfoG.connect(osc.detune);
-                lfo.start(when); lfo.stop(when + dur + 0.1);
-                osc.connect(masterG); osc.start(when); osc.stop(when + dur + 0.1);
+                lfo.start(when); lfo.stop(when + dur + 0.2);
+
+                // Per-voice tremolo (amplitude LFO)
+                var tremLfo = ctx.createOscillator(); var tremG = ctx.createGain();
+                tremLfo.frequency.value = TREM_HZ[idx]; tremG.gain.value = TREM_DEP[idx];
+                tremLfo.start(when); tremLfo.stop(when + dur + 0.2);
+
+                var vGain = ctx.createGain(); vGain.gain.value = 1.0;
+                tremLfo.connect(tremG); tremG.connect(vGain.gain);
+
+                osc.connect(vGain); vGain.connect(masterG);
+                osc.start(when); osc.stop(when + dur + 0.2);
+
+                swarmOscs.push({ osc: osc, relSemis: relSemis, stopAt: when + dur + 0.2 });
+                osc.onended = function () { try { vGain.disconnect(); osc.disconnect(); } catch (e) {} };
             })(si);
         }
+
         var cleanMs = Math.max((when + dur + 0.3 - ctx.currentTime) * 1000, 200);
         setTimeout(function () { try { masterG.disconnect(); } catch (e) {} }, cleanMs);
     }
@@ -564,8 +604,8 @@ window.__music = (function () {
                     // Swarmatron — fires every 5-9 bars
                     if (--swarmCountdown <= 0) {
                         var barDur = curTmpl.n * STEP;
-                        triggerSwarm(nextStepT, barDur * (2 + Math.floor(Math.random() * 2)));
-                        swarmCountdown = 5 + Math.floor(Math.random() * 5);
+                        triggerSwarm(nextStepT, barDur * (2 + Math.floor(Math.random() * 3)));
+                        swarmCountdown = 2 + Math.floor(Math.random() * 2);
                     }
                 }
                 if (nextStepT >= melNextT) schedMelPhrase(nextStepT);
