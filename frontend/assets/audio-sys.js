@@ -20,6 +20,8 @@
         '//',
         '//  HELP    — display this list',
         '//  ASCII   — toggle audio-reactive ASCII visualiser',
+        '//  SYNTH   — open the synthesiser control panel',
+        '//  RESET   — restore all synth settings to defaults',
         '//  EXIT    — return to MEGASTRUCTURE.SYS',
         '//',
     ];
@@ -47,6 +49,29 @@
                 appendLines(['// ASCII VISUALISER — ON', '// PRESS ESC OR TYPE ASCII + ENTER TO STOP']);
             }
             cmdEl.focus();
+        },
+        synth: function () {
+            var ui = window.__synthUI;
+            if (!ui) { appendLines(['// SYNTH PANEL NOT AVAILABLE']); return; }
+            if (ui.isOpen()) {
+                ui.hide();
+                appendLines(['// SYNTH PANEL — CLOSED']);
+            } else if (ui.show()) {
+                appendLines(['// SYNTH PANEL — OPEN',
+                             '// DRAG A BAR TO ADJUST · TYPE SYNTH OR ESC TO CLOSE']);
+            } else {
+                appendLines(['// SYNTH PANEL UNAVAILABLE — AUDIO ENGINE NOT LOADED']);
+            }
+            cmdEl.focus();
+        },
+        reset: function () {
+            if (!window.__music || !window.__music.resetParams) {
+                appendLines(['// NOTHING TO RESET']);
+                return;
+            }
+            window.__music.resetParams();
+            if (window.__synthUI && window.__synthUI.isOpen()) window.__synthUI.refresh();
+            appendLines(['// SYNTH PARAMETERS RESTORED TO DEFAULTS']);
         },
         exit: function () { hide(); },
     };
@@ -77,6 +102,9 @@
             document.body.classList.remove('into-audio-sys');
             document.body.classList.add('audio-sys-active');
 
+            // Clearing outEl would orphan the synth panel's DOM while leaving
+            // the pane's pinned height behind — close it properly first.
+            if (window.__synthUI && window.__synthUI.isOpen()) window.__synthUI.hide();
             outEl.innerHTML = '';
             appendLines(BOOT);
 
@@ -114,9 +142,14 @@
             cmdEl.value = '';
             runCmd(val);
         } else if (e.key === 'Escape') {
+            // Escape peels back one layer at a time: visualiser, then the
+            // synth panel, then the terminal itself.
             if (window.__asciiVis && window.__asciiVis.isRunning()) {
                 window.__asciiVis.stop();
                 appendLines(['// ASCII VISUALISER — OFF']);
+            } else if (window.__synthUI && window.__synthUI.isOpen()) {
+                window.__synthUI.hide();
+                appendLines(['// SYNTH PANEL — CLOSED']);
             } else {
                 hide();
             }
