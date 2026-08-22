@@ -547,7 +547,14 @@ body.egg-genesis #notes-panel {
 .splash-head {
     font-size: clamp(14px, 1.7vw, 20px);
     letter-spacing: 0.1em;
-    margin-bottom: 1.4rem;
+    margin-bottom: 0.35rem;
+}
+
+.splash-ver {
+    font-size: clamp(10px, 1vw, 12px);
+    color: rgba(255, 255, 255, 0.28);
+    letter-spacing: 0.16em;
+    margin-bottom: 1.1rem;
 }
 
 .splash-cursor {
