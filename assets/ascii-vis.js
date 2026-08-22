@@ -79,6 +79,7 @@ window.__asciiVis = (function () {
     //                giving the same soft halo as the terminal's text-shadow
     //                plus a CRT-phosphor bleed between neighbouring glyphs.
     var container = document.getElementById('audio-sys-out');
+    console.log('[ascii-vis] module init, container=', container);
 
     // `position:fixed` + a rect synced from getBoundingClientRect(), rather
     // than `position:absolute` inset to the container: #audio-sys-out
@@ -375,9 +376,21 @@ window.__asciiVis = (function () {
         // when flex-basis is `auto`, so setting height alone here is a
         // no-op under flex-basis:0%. Take it out of the flex algorithm
         // entirely so height applies as normal block sizing.
+        var beforeRect = container.getBoundingClientRect();
+        var targetHeight = getComputedStyle(container).maxHeight;
         container.style.flex = 'none';
-        container.style.height = getComputedStyle(container).maxHeight;
+        container.style.height = targetHeight;
+        var afterRect = container.getBoundingClientRect();
+        console.log('[ascii-vis] doStart: container=', container,
+            'beforeRect=', beforeRect.width, 'x', beforeRect.height,
+            'targetHeight=', targetHeight,
+            'afterRect=', afterRect.width, 'x', afterRect.height,
+            'computedFlex=', getComputedStyle(container).flex,
+            'computedHeight=', getComputedStyle(container).height);
         resize();
+        console.log('[ascii-vis] after resize: canvas=', canvas.width, 'x', canvas.height,
+            'COLS=', COLS, 'ROWS=', ROWS,
+            'canvas in DOM=', document.body.contains(canvas));
         running    = true;
         t          = 0;
         colorPhase = 0;
