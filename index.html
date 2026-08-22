@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>megastructure</title>
-    <link rel="stylesheet" href="/ah-website/styles-85b0427135d78ec2.css" integrity="sha384-RNBN01Ar1T2pnRP0BL8BsaPx5acjKgH9tl88yhfhx82P+f1nk+f474zm+8MM0s4F"/>
+    <link rel="stylesheet" href="/ah-website/styles-9efc21632b0d7ec0.css" integrity="sha384-CNn8irO/9RjJNGF52mkmduShWO1stMGyQdrMqrF46avWU0eu9mIDZzzzfZupK9Bs"/>
     
 <link rel="modulepreload" href="/ah-website/frontend-ec6651290af6f483.js" crossorigin="anonymous" integrity="sha384-k5cB2Rcm42+658Fc7a/1o7pZx9vkIse9mRZxM0fyuFSc5fDEmWGBXtafysMaDzAb"><link rel="preload" href="/ah-website/frontend-ec6651290af6f483_bg.wasm" crossorigin="anonymous" integrity="sha384-c4ZjeCB73n4U/Nw0ApcLMlcSco/Fn+CDgkpK8tySEePsAGyCBUaKMT3QYvg/DAhC" as="fetch" type="application/wasm"></head>
 <body>
@@ -15,8 +15,8 @@
     <!-- ── Splash / photosensitivity disclaimer ── -->
     <div id="splash">
         <div id="splash-inner">
-            <div class="splash-head">
-                <span class="splash-cursor">█</span><span>&nbsp;MEGASTRUCTURE.SYS</span>
+            <div class="splash-head" id="sys-title-splash">
+                <span id="sys-splash-before">MEGASTRUCTURE</span><span class="splash-cursor sys-cursor">█</span><span id="sys-splash-after"></span><span class="sys-suffix">.SYS</span>
             </div>
             <div class="splash-rule">────────────────────────────────────────────────────────────</div>
             <div class="splash-label">&gt;&gt;&nbsp;HEALTH&nbsp;ADVISORY&nbsp;/&nbsp;PHOTOSENSITIVITY</div>
@@ -100,10 +100,11 @@
 
     <script src="assets/music.js"></script>
     <script src="assets/scramble.js"></script>
+    <script src="assets/title.js"></script>
 
     <nav id="menu">
-        <div class="menu-header">
-            <span class="cursor">█</span>&nbsp;MEGASTRUCTURE.SYS
+        <div class="menu-header" id="sys-title-nav">
+            <span id="sys-nav-before">MEGASTRUCTURE</span><span class="cursor sys-cursor">█</span><span id="sys-nav-after"></span><span class="sys-suffix">.SYS</span>
         </div>
         <div class="menu-rule"></div>
         <button id="sector-0" class="menu-item active">
@@ -120,6 +121,7 @@
         </button>
         <div class="menu-rule"></div>
         <div class="menu-status">AUDIO&nbsp;STATUS&nbsp;<span id="audio-status" class="offline">OFFLINE</span></div>
+        <div id="sys-egg-msg"></div>
     </nav>
 
 <script type="module">
