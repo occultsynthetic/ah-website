@@ -120,8 +120,23 @@
         <div class="menu-status">AUDIO&nbsp;STATUS&nbsp;<span id="audio-status" class="online">ONLINE</span></div>
         <div id="sys-egg-msg"></div>
     </nav>
+    <!-- ── Audio-sys terminal overlay ── -->
+    <div id="audio-sys">
+        <div id="audio-sys-inner">
+            <div class="asys-head"><span id="asys-title">AUDIO.SYS</span><span class="asys-cursor">█</span></div>
+            <div class="asys-ver">// v0.1.0</div>
+            <div class="asys-rule">────────────────────────────────────────────────────────────</div>
+            <div id="audio-sys-out"></div>
+            <div class="asys-rule"></div>
+            <div class="asys-prompt-row">
+                <span class="asys-prompt">&gt;&nbsp;</span><input id="audio-sys-cmd" type="text" autocomplete="off" spellcheck="false" />
+            </div>
+        </div>
+    </div>
+
     <script src="assets/music.js"></script>
     <script src="assets/scramble.js"></script>
     <script src="assets/title.js"></script>
+    <script src="assets/audio-sys.js"></script>
 </body>
 </html>
