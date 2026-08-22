@@ -121,8 +121,9 @@
         if (window.__music && notesTitle) window.__music.setTextSeed(notesTitle.textContent || '');
     };
 
-    // ── Mobile detection ─────────────────────────────────────────────
+    // ── Mobile detection + audio status ──────────────────────────────
     var isMobile = /Mobi|Android/i.test(navigator.userAgent) || window.innerWidth <= 768;
+    var audioInitialized = false;
 
     function setAudioStatus(online) {
         var el = document.getElementById('audio-status');
@@ -130,6 +131,25 @@
         el.textContent = online ? 'ONLINE' : 'OFFLINE';
         el.className   = online ? 'online'  : 'offline';
     }
+
+    // Mobile: override the HTML default of ONLINE
+    if (isMobile) setAudioStatus(false);
+
+    // Click audio-status to toggle play / pause
+    (function () {
+        var el = document.getElementById('audio-status');
+        if (!el) return;
+        el.addEventListener('click', function () {
+            if (!audioInitialized) return;
+            if (el.classList.contains('online')) {
+                if (window.__music) window.__music.pause();
+                setAudioStatus(false);
+            } else {
+                if (window.__music) window.__music.resume();
+                setAudioStatus(true);
+            }
+        });
+    })();
 
     // ── Splash screen ────────────────────────────────────────────────
     var splashEl    = document.getElementById('splash');
@@ -142,7 +162,7 @@
         function dismissSplash() {
             if (!isMobile && window.__music) {
                 window.__music.init();
-                setAudioStatus(true);
+                audioInitialized = true;
             }
             splashEl.classList.add('splash-out');
             setTimeout(function () { splashEl.style.display = 'none'; }, 540);

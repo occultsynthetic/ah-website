@@ -524,6 +524,15 @@ window.__music = (function () {
         nGain.gain.setTargetAtTime(0.028, now+0.30, 0.14);
     }
 
-    return {init:init, setSector:setSector, setTextSeed:setTextSeed,
+    function pause() {
+        if (ctx && ctx.state === 'running') ctx.suspend();
+    }
+
+    function resume() {
+        if (ctx && ctx.state === 'suspended') ctx.resume();
+    }
+
+    return {init:init, pause:pause, resume:resume,
+            setSector:setSector, setTextSeed:setTextSeed,
             onGlitch:onGlitch, onIdleFlash:onIdleFlash};
 })();
