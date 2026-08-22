@@ -1,6 +1,6 @@
 @font-face {
-    font-family: 'IBMPlexMonoText';
-    src: url('assets/IbmPlexMonoText-aj99.otf') format('opentype');
+    font-family: 'IBMPlexMono';
+    src: url('assets/IbmPlexMono-7L4D.otf') format('opentype');
     font-display: swap;
 }
 
@@ -40,7 +40,7 @@ html, body {
     position: fixed;
     pointer-events: none;
     z-index: 40;
-    font-family: 'IBMPlexMonoText', 'Courier New', 'Courier', monospace;
+    font-family: 'IBMPlexMono', 'Courier New', 'Courier', monospace;
     font-size: clamp(14px, 1.65vw, 20px);
     letter-spacing: 0.08em;
     line-height: 1.9;
@@ -57,7 +57,7 @@ html, body {
     top: clamp(1rem, 3vw, 2rem);
     right: clamp(1rem, 3vw, 2rem);
     z-index: 10;
-    font-family: 'IBMPlexMonoText', 'Courier New', 'Courier', monospace;
+    font-family: 'IBMPlexMono', 'Courier New', 'Courier', monospace;
     font-size: clamp(14px, 1.65vw, 20px);
     line-height: 1.9;
     color: #fff;
@@ -173,7 +173,7 @@ html, body {
     background: rgba(4, 5, 7, 0.96);
     border: 1px solid rgba(255, 255, 255, 0.08);
     backdrop-filter: blur(6px);
-    font-family: 'IBMPlexMonoText', 'Courier New', 'Courier', monospace;
+    font-family: 'IBMPlexMono', 'Courier New', 'Courier', monospace;
     color: #ccc;
     overflow: hidden;
 }
@@ -352,7 +352,7 @@ html, body {
 /* ── markdown typography ── */
 #notes-body h1, #notes-body h2, #notes-body h3,
 #notes-body h4, #notes-body h5, #notes-body h6 {
-    font-family: 'IBMPlexMonoText', 'Courier New', monospace;
+    font-family: 'IBMPlexMono', 'Courier New', monospace;
     color: #fff;
     letter-spacing: 0.1em;
     margin: 2em 0 0.6em;
@@ -533,7 +533,7 @@ body.egg-genesis #notes-panel {
     display: flex;
     align-items: center;
     justify-content: center;
-    font-family: 'IBMPlexMonoText', 'Courier New', 'Courier', monospace;
+    font-family: 'IBMPlexMono', 'Courier New', 'Courier', monospace;
     color: #fff;
     text-shadow: 0 0 6px rgba(255,255,255,0.65), 0 0 18px rgba(255,255,255,0.25), 0 0 40px rgba(255,255,255,0.08);
     transition: opacity 0.5s ease;
@@ -666,7 +666,7 @@ body.from-audio-sys nav#menu {
     background: #000;
     align-items: center;
     justify-content: center;
-    font-family: 'IBMPlexMonoText', 'Courier New', 'Courier', monospace;
+    font-family: 'IBMPlexMono', 'Courier New', 'Courier', monospace;
     color: #fff;
     text-shadow: 0 0 6px rgba(255,255,255,0.65), 0 0 18px rgba(255,255,255,0.25), 0 0 40px rgba(255,255,255,0.08);
 }
@@ -759,7 +759,7 @@ body.from-audio-sys nav#menu {
     border: none;
     outline: none;
     color: #fff;
-    font-family: 'IBMPlexMonoText', 'Courier New', 'Courier', monospace;
+    font-family: 'IBMPlexMono', 'Courier New', 'Courier', monospace;
     font-size: inherit;
     letter-spacing: 0.05em;
     caret-color: rgba(255,255,255,0.8);
