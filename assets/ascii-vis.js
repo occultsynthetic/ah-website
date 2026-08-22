@@ -179,6 +179,15 @@ window.__asciiVis = (function () {
         if (ts - lastTs < FRAME_MS) return;
         lastTs = ts;
 
+        try {
+            frame(ts);
+        } catch (e) {
+            console.error('[ascii-vis] frame error, stopping:', e);
+            stop();
+        }
+    }
+
+    function frame(ts) {
         syncRect();
 
         // ── Fetch audio frequency data ────────────────────────────────
@@ -353,6 +362,14 @@ window.__asciiVis = (function () {
     // ── Public API ────────────────────────────────────────────────────
     function start() {
         if (running) return;
+        try {
+            doStart();
+        } catch (e) {
+            console.error('[ascii-vis] start error:', e);
+        }
+    }
+
+    function doStart() {
         // #audio-sys-out is `flex:1`, which expands to flex-basis:0% — an
         // explicit height on a flex item is only honoured as its basis
         // when flex-basis is `auto`, so setting height alone here is a
