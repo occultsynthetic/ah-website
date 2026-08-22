@@ -73,13 +73,14 @@ window.__asciiVis = (function () {
     var GREENS = ['#030','#151','#272','#393','#4b4','#5d5','#6f6','#8f8'];
     var BLUES  = ['#003','#115','#227','#339','#44b','#55d','#66f','#99f'];
 
-    // ── Canvas (created dynamically, z-index 160, above audio-sys 150) ─
+    // ── Canvas (lives inside the audio-sys terminal's output pane) ────
+    var container = document.getElementById('audio-sys-out');
     var canvas = document.createElement('canvas');
     canvas.id  = 'ascii-vis-canvas';
     canvas.style.cssText =
-        'position:fixed;top:0;left:0;right:0;bottom:0;width:100%;height:100%;' +
-        'z-index:160;display:none;pointer-events:none;background:#000;';
-    document.body.appendChild(canvas);
+        'position:absolute;top:0;left:0;width:100%;height:100%;' +
+        'z-index:5;display:none;pointer-events:none;background:#000;';
+    container.appendChild(canvas);
 
     var ctx2d = canvas.getContext('2d');
     var CW = 10, CH = 17;
@@ -87,8 +88,9 @@ window.__asciiVis = (function () {
     var rowShifts = [];
 
     function resize() {
-        canvas.width  = window.innerWidth;
-        canvas.height = window.innerHeight;
+        var rect = container.getBoundingClientRect();
+        canvas.width  = Math.max(1, Math.round(rect.width));
+        canvas.height = Math.max(1, Math.round(rect.height));
         ctx2d.font = '14px "Courier New",Courier,monospace';
         var mw = ctx2d.measureText('M').width;
         CW   = Math.max(8, Math.ceil(mw));
@@ -101,6 +103,9 @@ window.__asciiVis = (function () {
     }
     resize();
     window.addEventListener('resize', resize);
+    if (window.ResizeObserver) {
+        new ResizeObserver(resize).observe(container);
+    }
 
     // ── Animation state ───────────────────────────────────────────────
     var running    = false;
@@ -205,10 +210,10 @@ window.__asciiVis = (function () {
         }
 
         // hint text so the user knows how to close
-        ctx2d.fillStyle = 'rgba(255,255,255,0.18)';
-        ctx2d.font = '11px "Courier New",Courier,monospace';
+        ctx2d.fillStyle = 'rgba(255,255,255,0.22)';
+        ctx2d.font = '10px "Courier New",Courier,monospace';
         ctx2d.textBaseline = 'bottom';
-        ctx2d.fillText('// TYPE ASCII + ENTER TO STOP   ESC TO EXIT', 10, canvas.height - 4);
+        ctx2d.fillText('// ESC TO STOP', 6, canvas.height - 3);
     }
 
     function getChar(col, row, bass, mid, high, energy, art) {
@@ -274,6 +279,7 @@ window.__asciiVis = (function () {
     // ── Public API ────────────────────────────────────────────────────
     function start() {
         if (running) return;
+        resize();
         running    = true;
         t          = 0;
         colorPhase = 0;

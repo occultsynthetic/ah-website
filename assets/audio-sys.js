@@ -44,8 +44,9 @@
                 appendLines(['// ASCII VISUALISER — OFF']);
             } else {
                 vis.start();
-                appendLines(['// ASCII VISUALISER — ON', '// TYPE ASCII + ENTER TO STOP']);
+                appendLines(['// ASCII VISUALISER — ON', '// PRESS ESC OR TYPE ASCII + ENTER TO STOP']);
             }
+            cmdEl.focus();
         },
         exit: function () { hide(); },
     };

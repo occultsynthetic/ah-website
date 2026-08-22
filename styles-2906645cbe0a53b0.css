@@ -722,6 +722,7 @@ body.from-audio-sys nav#menu {
 }
 
 #audio-sys-out {
+    position: relative;
     flex: 1;
     overflow-y: auto;
     font-size: clamp(12px, 1.25vw, 16px);
