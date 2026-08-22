@@ -332,10 +332,12 @@ window.__asciiVis = (function () {
     // ── Public API ────────────────────────────────────────────────────
     function start() {
         if (running) return;
-        // #audio-sys-out is `flex:1` inside an auto-height flex column, so
-        // it normally shrinks to fit its (short) text content rather than
-        // filling the space up to its max-height — pin it open while the
-        // visualiser runs so it actually has room to draw in.
+        // #audio-sys-out is `flex:1`, which expands to flex-basis:0% — an
+        // explicit height on a flex item is only honoured as its basis
+        // when flex-basis is `auto`, so setting height alone here is a
+        // no-op under flex-basis:0%. Take it out of the flex algorithm
+        // entirely so height applies as normal block sizing.
+        container.style.flex = 'none';
         container.style.height = getComputedStyle(container).maxHeight;
         resize();
         running    = true;
@@ -367,6 +369,7 @@ window.__asciiVis = (function () {
         glowCanvas.style.display = 'none';
         ctx2d.clearRect(0, 0, canvas.width, canvas.height);
         glowCtx.clearRect(0, 0, glowCanvas.width, glowCanvas.height);
+        container.style.flex = '';
         container.style.height = '';
     }
 
