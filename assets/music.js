@@ -150,6 +150,98 @@ window.__music = (function () {
     var swarmCountdown = 2;
     var analyser = null;
 
+    // ── User-tunable parameters (drives the SYNTH panel in AUDIO.SYS) ──
+    // PARAM_DEFS is the single source of truth: it seeds both the live
+    // values (P) and the reset targets (DEFAULTS), and describes each
+    // control to the UI. fmt: 'n' = number, 'hz' = frequency, 'i' = integer.
+    var PARAM_DEFS = [
+        {g:'MASTER', id:'masterVol',   label:'VOLUME', min:0,   max:1.0,   dflt:0.68,  fmt:'n',
+         hint:'overall output level'},
+        {g:'MASTER', id:'masterTone',  label:'TONE',   min:200, max:6000,  dflt:1800,  fmt:'hz',
+         hint:'pad lowpass cutoff'},
+        {g:'MASTER', id:'masterReso',  label:'RESO',   min:0.1, max:12,    dflt:1.1,   fmt:'n',
+         hint:'pad filter resonance'},
+        {g:'MASTER', id:'reverb',      label:'REVERB', min:0,   max:1.5,   dflt:0.55,  fmt:'n',
+         hint:'reverb return level'},
+
+        {g:'SWARMATRON', id:'swarmLevel',  label:'LEVEL',  min:0,   max:0.30, dflt:0.110, fmt:'n',
+         hint:'swarm peak loudness'},
+        {g:'SWARMATRON', id:'swarmTone',   label:'TONE',   min:200, max:5000, dflt:1400,  fmt:'hz',
+         hint:'swarm lowpass cutoff'},
+        {g:'SWARMATRON', id:'swarmReso',   label:'RESO',   min:0.1, max:8,    dflt:0.65,  fmt:'n',
+         hint:'swarm filter resonance'},
+        {g:'SWARMATRON', id:'swarmEcho',   label:'ECHO',   min:0,   max:0.85, dflt:0.42,  fmt:'n',
+         hint:'swarm delay feedback'},
+        {g:'SWARMATRON', id:'swarmSpread', label:'SPREAD', min:0,   max:4,    dflt:1.0,   fmt:'n',
+         hint:'voice detune spread'},
+        {g:'SWARMATRON', id:'swarmRate',   label:'EVERY',  min:1,   max:12,   dflt:2,     fmt:'i',
+         hint:'bars between swarms'},
+
+        {g:'PAD',    id:'padLevel',   label:'LEVEL',  min:0,   max:2.0,  dflt:1.0,   fmt:'n',
+         hint:'chord stab level'},
+        {g:'PAD',    id:'padDetune',  label:'DETUNE', min:0,   max:4.0,  dflt:1.0,   fmt:'n',
+         hint:'chord stab detune'},
+
+        {g:'BASS',   id:'bassLevel',  label:'LEVEL',  min:0,   max:2.5,  dflt:1.0,   fmt:'n',
+         hint:'bass note level'},
+        {g:'BASS',   id:'bassTone',   label:'TONE',   min:80,  max:2000, dflt:520,   fmt:'hz',
+         hint:'bass lowpass cutoff'},
+        {g:'BASS',   id:'subLevel',   label:'SUB',    min:0,   max:0.6,  dflt:0.22,  fmt:'n',
+         hint:'sub oscillator drone'},
+
+        {g:'MELODY', id:'melLevel',   label:'LEVEL',  min:0,   max:2.5,  dflt:1.0,   fmt:'n',
+         hint:'lead melody level'},
+        {g:'MELODY', id:'melTone',    label:'TONE',   min:500, max:9000, dflt:4200,  fmt:'hz',
+         hint:'melody lowpass cutoff'},
+        {g:'MELODY', id:'melEcho',    label:'ECHO',   min:0,   max:2.0,  dflt:1.0,   fmt:'n',
+         hint:'melody delay amount'},
+
+        {g:'DRUMS',  id:'drumLevel',  label:'LEVEL',  min:0,   max:2.0,  dflt:1.0,   fmt:'n',
+         hint:'drum bus level'},
+        {g:'DRUMS',  id:'snareEcho',  label:'ECHO',   min:0,   max:0.8,  dflt:0.32,  fmt:'n',
+         hint:'snare delay feedback'},
+
+        {g:'NOISE',  id:'noiseLevel', label:'LEVEL',  min:0,   max:0.15, dflt:0.028, fmt:'n',
+         hint:'ambient noise bed'},
+    ];
+
+    var P = {}, DEFAULTS = {};
+    for (var _i = 0; _i < PARAM_DEFS.length; _i++) {
+        P[PARAM_DEFS[_i].id]        = PARAM_DEFS[_i].dflt;
+        DEFAULTS[PARAM_DEFS[_i].id] = PARAM_DEFS[_i].dflt;
+    }
+
+    // Push one param onto its live AudioNode. Trigger-time params (levels
+    // read when a note is scheduled) have no node to update and fall through.
+    function applyParam(id) {
+        if (!ctx) return;
+        var now = ctx.currentTime, v = P[id], T = 0.05;
+        switch (id) {
+            case 'masterVol':  master.gain.setTargetAtTime(v, now, T); break;
+            case 'masterTone': mFilt.frequency.setTargetAtTime(v, now, T); break;
+            case 'masterReso': mFilt.Q.setTargetAtTime(v, now, T); break;
+            case 'reverb':     verbRtn.gain.setTargetAtTime(v, now, T); break;
+            case 'swarmTone':  swarmFilt.frequency.setTargetAtTime(v, now, T); break;
+            case 'swarmReso':  swarmFilt.Q.setTargetAtTime(v, now, T); break;
+            case 'swarmEcho':  swarmDelayFB.gain.setTargetAtTime(v, now, T); break;
+            case 'bassTone':   bassFilter.frequency.setTargetAtTime(v, now, T); break;
+            case 'subLevel':   subGain.gain.setTargetAtTime(v, now, T); break;
+            case 'melTone':    melFilt.frequency.setTargetAtTime(v, now, T); break;
+            case 'drumLevel':  drumBus.gain.setTargetAtTime(v, now, T); break;
+            case 'snareEcho':  snareDelayFB.gain.setTargetAtTime(v, now, T); break;
+            case 'noiseLevel': nGain.gain.setTargetAtTime(v, now, T); break;
+        }
+    }
+
+    // Applied once the graph exists. Excludes params whose initial value is
+    // owned by init()'s slow fade-in ramps (master/sub/noise/drum levels) —
+    // those read from P directly there, so re-applying would snap the fade.
+    var INIT_APPLY = ['masterTone','masterReso','reverb','swarmTone','swarmReso',
+                      'swarmEcho','bassTone','melTone','snareEcho'];
+    function applyInitParams() {
+        for (var i = 0; i < INIT_APPLY.length; i++) applyParam(INIT_APPLY[i]);
+    }
+
     function mtof(m) { return 440 * Math.pow(2, (m - 69) / 12); }
     function inArr(a, v) { for (var i=0;i<a.length;i++) if(a[i]===v)return i; return -1; }
 
@@ -292,11 +384,11 @@ window.__music = (function () {
         for (var pi = 0; pi < 3; pi++) {
             (function (i) {
                 var osc = ctx.createOscillator();
-                osc.type = PTYP[i]; osc.detune.value = PDET[i];
+                osc.type = PTYP[i]; osc.detune.value = PDET[i] * P.padDetune;
                 osc.frequency.value = padFreqs[i];
                 var g = ctx.createGain();
                 g.gain.setValueAtTime(0.001, when);
-                g.gain.linearRampToValueAtTime(PBASE[i]*vel, when+0.016);
+                g.gain.linearRampToValueAtTime(PBASE[i]*vel*P.padLevel, when+0.016);
                 g.gain.setTargetAtTime(0.001, when+0.016, 1.5);
                 osc.connect(g); g.connect(mFilt);
                 osc.start(when); osc.stop(when+7.0);
@@ -312,7 +404,7 @@ window.__music = (function () {
         osc.frequency.value = mtof(curRoot + ivl);
         var g = ctx.createGain();
         g.gain.setValueAtTime(0.001, when);
-        g.gain.linearRampToValueAtTime(0.162, when+0.007);
+        g.gain.linearRampToValueAtTime(0.162 * P.bassLevel, when+0.007);
         g.gain.setTargetAtTime(0.001, when+0.007, 0.20);
         osc.connect(g); g.connect(bassFilter);
         osc.start(when); osc.stop(when+1.2);
@@ -413,7 +505,8 @@ window.__music = (function () {
                  : 'exhale';
 
         // Master gain — shape varies per mode to drive dynamics
-        var PEAK = 0.110;
+        var PEAK = P.swarmLevel;
+        if (PEAK <= 0) return;  // muted — skip building the whole voice graph
         var masterG = ctx.createGain();
         masterG.gain.setValueAtTime(0, when);
         masterG.connect(swarmFilt);
@@ -451,7 +544,7 @@ window.__music = (function () {
                 var osc = ctx.createOscillator();
                 osc.type = PAD_TYPES[i];
                 osc.frequency.value = mtof(root + relSemis);
-                osc.detune.value = PAD_DET[i];
+                osc.detune.value = PAD_DET[i] * P.swarmSpread;
 
                 var lfo = ctx.createOscillator(); var lfoG = ctx.createGain();
                 lfo.frequency.value = 0.05 + Math.random() * 0.09;
@@ -597,7 +690,7 @@ window.__music = (function () {
         osc.frequency.value = freq;
         var g = ctx.createGain();
         g.gain.setValueAtTime(0.001, when);
-        g.gain.linearRampToValueAtTime(0.126, when+0.06);
+        g.gain.linearRampToValueAtTime(0.126 * P.melLevel, when+0.06);
         g.gain.setTargetAtTime(0.001, when+dur*0.82, 0.50);
         osc.connect(g); g.connect(melFilt);
         osc.start(when); osc.stop(when+dur+2.8);
@@ -665,8 +758,8 @@ window.__music = (function () {
             var dts = [0.375, 0.563, 0.750, 1.125];
             var dt  = dts[(melSeed >>> 10) & 3];
             melDelay.delayTime.setValueAtTime(dt, now);
-            melFbGain.gain.setTargetAtTime(0.38, now, 0.15);
-            melDelayOut.gain.setTargetAtTime(0.70, now, 0.15);
+            melFbGain.gain.setTargetAtTime(Math.min(0.85, 0.38 * P.melEcho), now, 0.15);
+            melDelayOut.gain.setTargetAtTime(0.70 * P.melEcho, now, 0.15);
             var offT = barStartT + tail + dt * 7;
             melFbGain.gain.setTargetAtTime(0.0, offT, 0.6);
             melDelayOut.gain.setTargetAtTime(0.0, offT, 0.6);
@@ -688,7 +781,8 @@ window.__music = (function () {
                     if (--swarmCountdown <= 0) {
                         var barDur = curTmpl.n * STEP;
                         triggerSwarm(nextStepT, barDur * (2 + Math.floor(Math.random() * 3)));
-                        swarmCountdown = 2 + Math.floor(Math.random() * 2);
+                        swarmCountdown = Math.max(1, Math.round(P.swarmRate)) +
+                                         Math.floor(Math.random() * 2);
                     }
                 }
                 if (nextStepT >= melNextT) schedMelPhrase(nextStepT);
@@ -735,13 +829,14 @@ window.__music = (function () {
         ctx = new (window.AudioContext||window.webkitAudioContext)({latencyHint:'playback'});
         buildGraph();
         var now = ctx.currentTime;
-        master.gain.setTargetAtTime(0.68, now,      2.0);
-        subGain.gain.setTargetAtTime(0.22, now+1.5, 3.5);
-        nGain.gain.setTargetAtTime(0.028, now+4.0,  2.5);
+        applyInitParams();
+        master.gain.setTargetAtTime(P.masterVol,  now,      2.0);
+        subGain.gain.setTargetAtTime(P.subLevel,  now+1.5,  3.5);
+        nGain.gain.setTargetAtTime(P.noiseLevel,  now+4.0,  2.5);
         setChordState(CHORDS[curProg[0]]);
         nextStepT = now + 0.6;
         // Drums fade in after pads establish, then gate open so scheduling begins
-        drumBus.gain.setTargetAtTime(1, now + 2.5, 3.5);
+        drumBus.gain.setTargetAtTime(P.drumLevel, now + 2.5, 3.5);
         setTimeout(function() { drumActive = true; }, 2500);
         tick();
     }
@@ -753,8 +848,10 @@ window.__music = (function () {
         semis   = semisMap[idx % 4];
         curProg = PROGS[progMap[idx % 4]];
         progPos = 0;
+        // Scale the sector's character by the user's TONE setting rather than
+        // overwriting it, so a SYNTH tweak survives sector changes.
         var fqs = [1800,1400,2500,1100];
-        mFilt.frequency.setTargetAtTime(fqs[idx%4], ctx.currentTime, 5.0);
+        mFilt.frequency.setTargetAtTime(fqs[idx%4] * (P.masterTone / 1800), ctx.currentTime, 5.0);
         setChordState(CHORDS[curProg[0]]);
     }
 
@@ -771,16 +868,16 @@ window.__music = (function () {
         if (!ctx) return;
         var now = ctx.currentTime;
         mFilt.Q.setTargetAtTime(9.0, now, 0.008);
-        mFilt.Q.setTargetAtTime(1.1, now+0.18, 0.25);
-        nGain.gain.setTargetAtTime(0.15,  now, 0.008);
-        nGain.gain.setTargetAtTime(0.028, now+0.45, 0.20);
+        mFilt.Q.setTargetAtTime(P.masterReso, now+0.18, 0.25);
+        nGain.gain.setTargetAtTime(Math.max(0.15, P.noiseLevel), now, 0.008);
+        nGain.gain.setTargetAtTime(P.noiseLevel, now+0.45, 0.20);
     }
 
     function onIdleFlash() {
         if (!ctx) return;
         var now = ctx.currentTime;
-        nGain.gain.setTargetAtTime(0.060, now, 0.018);
-        nGain.gain.setTargetAtTime(0.028, now+0.30, 0.14);
+        nGain.gain.setTargetAtTime(Math.max(0.060, P.noiseLevel), now, 0.018);
+        nGain.gain.setTargetAtTime(P.noiseLevel, now+0.30, 0.14);
     }
 
     function pause() {
@@ -791,8 +888,31 @@ window.__music = (function () {
         if (ctx && ctx.state === 'suspended') ctx.resume();
     }
 
+    // ── Param API (consumed by synth-ui.js) ───────────────────────────
+    // Values can be set before audio starts; applyParam() no-ops without a
+    // graph and init() applies the stored values when the context comes up.
+    function getParamDefs() { return PARAM_DEFS; }
+    function getParam(id)   { return P[id]; }
+
+    function setParam(id, v) {
+        if (!(id in P)) return;
+        P[id] = v;
+        applyParam(id);
+    }
+
+    function resetParams() {
+        for (var k in DEFAULTS) {
+            if (!Object.prototype.hasOwnProperty.call(DEFAULTS, k)) continue;
+            P[k] = DEFAULTS[k];
+            applyParam(k);
+        }
+    }
+
     return {init:init, pause:pause, resume:resume,
             setSector:setSector, setTextSeed:setTextSeed,
             onGlitch:onGlitch, onIdleFlash:onIdleFlash,
-            getAnalyser: function () { return analyser; }};
+            getAnalyser: function () { return analyser; },
+            getParamDefs: getParamDefs, getParam: getParam,
+            setParam: setParam, resetParams: resetParams,
+            isReady: function () { return !!ctx; }};
 })();
