@@ -308,7 +308,7 @@ window.__music = (function () {
         osc.frequency.exponentialRampToValueAtTime(28, when + 0.10);
         var g = ctx.createGain();
         g.gain.setValueAtTime(0.001, when);
-        g.gain.linearRampToValueAtTime(0.35 * vel, when + 0.003);
+        g.gain.linearRampToValueAtTime(0.70 * vel, when + 0.003);
         g.gain.exponentialRampToValueAtTime(0.001, when + 0.28);
         osc.connect(g); g.connect(drumBus);
         osc.start(when); osc.stop(when + 0.32);
@@ -321,14 +321,14 @@ window.__music = (function () {
         var nf  = ctx.createBiquadFilter(); nf.type = 'bandpass'; nf.frequency.value = 2600; nf.Q.value = 0.9;
         var ng  = ctx.createGain();
         ng.gain.setValueAtTime(0.001, when);
-        ng.gain.linearRampToValueAtTime(0.22 * vel, when + 0.002);
+        ng.gain.linearRampToValueAtTime(0.44 * vel, when + 0.002);
         ng.gain.exponentialRampToValueAtTime(0.001, when + 0.10);
         src.connect(nf); nf.connect(ng); ng.connect(drumBus);
         src.start(when, off, 0.12);
         var tosc = ctx.createOscillator(); tosc.type = 'sine'; tosc.frequency.value = 195;
         var tg = ctx.createGain();
         tg.gain.setValueAtTime(0.001, when);
-        tg.gain.linearRampToValueAtTime(0.10 * vel, when + 0.002);
+        tg.gain.linearRampToValueAtTime(0.20 * vel, when + 0.002);
         tg.gain.exponentialRampToValueAtTime(0.001, when + 0.042);
         tosc.connect(tg); tg.connect(drumBus);
         tosc.start(when); tosc.stop(when + 0.06);
@@ -347,7 +347,7 @@ window.__music = (function () {
         var hpf = ctx.createBiquadFilter(); hpf.type = 'highpass'; hpf.frequency.value = 8500;
         var g = ctx.createGain();
         g.gain.setValueAtTime(0.001, when);
-        g.gain.linearRampToValueAtTime(0.14 * vel, when + 0.001);
+        g.gain.linearRampToValueAtTime(0.28 * vel, when + 0.001);
         g.gain.exponentialRampToValueAtTime(0.001, when + 0.042);
         src.connect(hpf); hpf.connect(g); g.connect(drumBus);
         src.start(when, Math.random() * 0.7, 0.055);
@@ -359,7 +359,7 @@ window.__music = (function () {
         var nf  = ctx.createBiquadFilter(); nf.type = 'bandpass'; nf.frequency.value = 2400; nf.Q.value = 1.0;
         var g   = ctx.createGain();
         g.gain.setValueAtTime(0.001, when);
-        g.gain.linearRampToValueAtTime(0.07 * vel, when + 0.002);
+        g.gain.linearRampToValueAtTime(0.14 * vel, when + 0.002);
         g.gain.exponentialRampToValueAtTime(0.001, when + 0.065);
         src.connect(nf); nf.connect(g); g.connect(drumBus);
         src.start(when, Math.random() * 0.7, 0.08);
