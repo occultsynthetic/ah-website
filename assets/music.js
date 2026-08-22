@@ -269,7 +269,7 @@ window.__music = (function () {
     // ── Pad stab ─────────────────────────────────────────────────────
     var PTYP  = ['sawtooth','sawtooth','triangle'];
     var PDET  = [-7, +7, +2];
-    var PBASE = [0.07, 0.07, 0.09];
+    var PBASE = [0.063, 0.063, 0.081];
     function triggerPad(when, vel) {
         for (var pi = 0; pi < 3; pi++) {
             (function (i) {
@@ -294,7 +294,7 @@ window.__music = (function () {
         osc.frequency.value = mtof(curRoot + ivl);
         var g = ctx.createGain();
         g.gain.setValueAtTime(0.001, when);
-        g.gain.linearRampToValueAtTime(0.18, when+0.007);
+        g.gain.linearRampToValueAtTime(0.162, when+0.007);
         g.gain.setTargetAtTime(0.001, when+0.007, 0.20);
         osc.connect(g); g.connect(bassFilter);
         osc.start(when); osc.stop(when+1.2);
@@ -384,8 +384,8 @@ window.__music = (function () {
         var NUM = 7, SPREAD = 26;
         var masterG = ctx.createGain();
         masterG.gain.setValueAtTime(0, when);
-        masterG.gain.linearRampToValueAtTime(0.13, when + 1.0);
-        masterG.gain.setValueAtTime(0.13, when + dur - 1.1);
+        masterG.gain.linearRampToValueAtTime(0.169, when + 1.0);
+        masterG.gain.setValueAtTime(0.169, when + dur - 1.1);
         masterG.gain.exponentialRampToValueAtTime(0.001, when + dur);
         masterG.connect(swarmFilt);
         var baseFreq = mtof(curRoot);
@@ -422,7 +422,7 @@ window.__music = (function () {
             bpA.Q.value = 4.5;
             var gA = ctx.createGain();
             gA.gain.setValueAtTime(0, when);
-            gA.gain.linearRampToValueAtTime(0.14, when + 0.003);
+            gA.gain.linearRampToValueAtTime(0.182, when + 0.003);
             gA.gain.exponentialRampToValueAtTime(0.001, when + 0.10);
             srcA.connect(wsA); wsA.connect(bpA); bpA.connect(gA); gA.connect(drumBus);
             srcA.start(when, offA, 0.12);
@@ -441,7 +441,7 @@ window.__music = (function () {
                     var bpB  = ctx.createBiquadFilter();
                     bpB.type = 'bandpass'; bpB.frequency.value = 1800 + Math.random() * 3400; bpB.Q.value = 5.5;
                     var gB  = ctx.createGain();
-                    var vB  = 0.09 * Math.pow(0.78, ki);
+                    var vB  = 0.117 * Math.pow(0.78, ki);
                     gB.gain.setValueAtTime(0, t);
                     gB.gain.linearRampToValueAtTime(vB, t + 0.002);
                     gB.gain.exponentialRampToValueAtTime(0.001, t + 0.030);
@@ -460,7 +460,7 @@ window.__music = (function () {
             lpC.type = 'lowpass'; lpC.frequency.value = 340; lpC.Q.value = 2.2;
             var gC   = ctx.createGain();
             gC.gain.setValueAtTime(0, when);
-            gC.gain.linearRampToValueAtTime(0.20, when + 0.007);
+            gC.gain.linearRampToValueAtTime(0.26, when + 0.007);
             gC.gain.exponentialRampToValueAtTime(0.001, when + 0.22);
             srcC.connect(wsC); wsC.connect(lpC); lpC.connect(gC); gC.connect(comp);
             srcC.start(when, offC, 0.26);
@@ -474,7 +474,7 @@ window.__music = (function () {
         osc.frequency.value = freq;
         var g = ctx.createGain();
         g.gain.setValueAtTime(0.001, when);
-        g.gain.linearRampToValueAtTime(0.14, when+0.06);
+        g.gain.linearRampToValueAtTime(0.126, when+0.06);
         g.gain.setTargetAtTime(0.001, when+dur*0.82, 0.50);
         osc.connect(g); g.connect(melFilt);
         osc.start(when); osc.stop(when+dur+2.8);
