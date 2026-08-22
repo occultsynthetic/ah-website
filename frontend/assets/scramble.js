@@ -140,7 +140,14 @@
         var el = document.getElementById('audio-status');
         if (!el) return;
         el.addEventListener('click', function () {
-            if (!audioInitialized) return;
+            if (!audioInitialized) {
+                if (window.__music) {
+                    window.__music.init();
+                    audioInitialized = true;
+                    setAudioStatus(true);
+                }
+                return;
+            }
             if (el.classList.contains('online')) {
                 if (window.__music) window.__music.pause();
                 setAudioStatus(false);
