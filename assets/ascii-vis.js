@@ -332,6 +332,11 @@ window.__asciiVis = (function () {
     // ── Public API ────────────────────────────────────────────────────
     function start() {
         if (running) return;
+        // #audio-sys-out is `flex:1` inside an auto-height flex column, so
+        // it normally shrinks to fit its (short) text content rather than
+        // filling the space up to its max-height — pin it open while the
+        // visualiser runs so it actually has room to draw in.
+        container.style.height = getComputedStyle(container).maxHeight;
         resize();
         running    = true;
         t          = 0;
@@ -362,6 +367,7 @@ window.__asciiVis = (function () {
         glowCanvas.style.display = 'none';
         ctx2d.clearRect(0, 0, canvas.width, canvas.height);
         glowCtx.clearRect(0, 0, glowCanvas.width, glowCanvas.height);
+        container.style.height = '';
     }
 
     return {
