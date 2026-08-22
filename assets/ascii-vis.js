@@ -73,32 +73,28 @@ window.__asciiVis = (function () {
     var GREENS = ['#030','#151','#272','#393','#4b4','#5d5','#6f6','#8f8'];
     var BLUES  = ['#003','#115','#227','#339','#44b','#55d','#66f','#99f'];
 
-    // ── Canvases (live inside the audio-sys terminal's output pane) ───
-    // `canvas`     — crisp characters, own trail/decay pass.
-    // `glowCanvas` — blurred, screen-blended copy of the frame above it,
-    //                giving the same soft halo as the terminal's text-shadow
-    //                plus a CRT-phosphor bleed between neighbouring glyphs.
+    // `container` is used only as a geometry reference (getBoundingClientRect)
+    // — the canvases are NOT appended inside it. audio-sys.js's show() does
+    // outEl.innerHTML = '' (outEl === this element) every time the terminal
+    // opens, which would destroy them, since they're only created once here
+    // at module load. They're viewport-positioned (`position:fixed`) anyway,
+    // so their DOM parent doesn't affect layout — attach them to <body>,
+    // which nothing ever clears, with a z-index between #audio-sys (150)
+    // and #crt-overlay (200) so they still paint above the terminal text.
     var container = document.getElementById('audio-sys-out');
-    console.log('[ascii-vis] module init, container=', container);
 
-    // `position:fixed` + a rect synced from getBoundingClientRect(), rather
-    // than `position:absolute` inset to the container: #audio-sys-out
-    // scrolls (overflow-y:auto) and auto-scrolls to bottom on every new
-    // line, which would carry an absolutely-positioned (i.e. scrolls-with-
-    // content) canvas pinned at the top of that content out of view.
-    // Viewport-fixed coordinates are immune to the container's own scroll.
     var canvas = document.createElement('canvas');
     canvas.id  = 'ascii-vis-canvas';
     canvas.style.cssText =
-        'position:fixed;z-index:5;display:none;pointer-events:none;background:#000;';
-    container.appendChild(canvas);
+        'position:fixed;z-index:155;display:none;pointer-events:none;background:#000;';
+    document.body.appendChild(canvas);
 
     var glowCanvas = document.createElement('canvas');
     glowCanvas.id  = 'ascii-vis-glow';
     glowCanvas.style.cssText =
-        'position:fixed;z-index:6;display:none;pointer-events:none;' +
+        'position:fixed;z-index:156;display:none;pointer-events:none;' +
         'mix-blend-mode:screen;opacity:0.9;filter:blur(3px) saturate(1.35);';
-    container.appendChild(glowCanvas);
+    document.body.appendChild(glowCanvas);
 
     var ctx2d = canvas.getContext('2d');
     var glowCtx = glowCanvas.getContext('2d');
@@ -376,21 +372,9 @@ window.__asciiVis = (function () {
         // when flex-basis is `auto`, so setting height alone here is a
         // no-op under flex-basis:0%. Take it out of the flex algorithm
         // entirely so height applies as normal block sizing.
-        var beforeRect = container.getBoundingClientRect();
-        var targetHeight = getComputedStyle(container).maxHeight;
         container.style.flex = 'none';
-        container.style.height = targetHeight;
-        var afterRect = container.getBoundingClientRect();
-        console.log('[ascii-vis] doStart: container=', container,
-            'beforeRect=', beforeRect.width, 'x', beforeRect.height,
-            'targetHeight=', targetHeight,
-            'afterRect=', afterRect.width, 'x', afterRect.height,
-            'computedFlex=', getComputedStyle(container).flex,
-            'computedHeight=', getComputedStyle(container).height);
+        container.style.height = getComputedStyle(container).maxHeight;
         resize();
-        console.log('[ascii-vis] after resize: canvas=', canvas.width, 'x', canvas.height,
-            'COLS=', COLS, 'ROWS=', ROWS,
-            'canvas in DOM=', document.body.contains(canvas));
         running    = true;
         t          = 0;
         colorPhase = 0;
