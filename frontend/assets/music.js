@@ -148,6 +148,7 @@ window.__music = (function () {
     var swarmOscs = [];
     var distCurve;
     var swarmCountdown = 2;
+    var analyser = null;
 
     function mtof(m) { return 440 * Math.pow(2, (m - 69) / 12); }
     function inArr(a, v) { for (var i=0;i<a.length;i++) if(a[i]===v)return i; return -1; }
@@ -171,6 +172,10 @@ window.__music = (function () {
         comp.attack.value = 0.05;   comp.release.value = 0.5;
         master = ctx.createGain(); master.gain.value = 0;
         comp.connect(master); master.connect(ctx.destination);
+        analyser = ctx.createAnalyser();
+        analyser.fftSize = 512;
+        analyser.smoothingTimeConstant = 0.82;
+        master.connect(analyser);
 
         verb = ctx.createConvolver(); verb.buffer = makeIR(8.0, 2.5);
         verbRtn = ctx.createGain(); verbRtn.gain.value = 0.55;
@@ -788,5 +793,6 @@ window.__music = (function () {
 
     return {init:init, pause:pause, resume:resume,
             setSector:setSector, setTextSeed:setTextSeed,
-            onGlitch:onGlitch, onIdleFlash:onIdleFlash};
+            onGlitch:onGlitch, onIdleFlash:onIdleFlash,
+            getAnalyser: function () { return analyser; }};
 })();
