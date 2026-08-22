@@ -111,6 +111,9 @@
         }).observe(notesPanel, { attributes: true, attributeFilter: ['class'] });
     }
 
+    // Expose for external callers (e.g. CIPHER egg in title.js).
+    window.__scramble = { all: scrambleAll, el: scrambleEl };
+
     // Called directly from Rust (open_idx) via js_sys::eval — no MO race.
     window.__scrambleNotesBody = function () {
         if (notesTitle) scrambleEl(notesTitle, 0);

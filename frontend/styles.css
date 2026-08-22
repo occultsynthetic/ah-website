@@ -434,6 +434,71 @@ html, body {
     color: #4dff88;
 }
 
+/* ── Editable sys-title ─────────────────────────────────────── */
+
+#sys-title-nav,
+#sys-title-splash {
+    cursor: text;
+    user-select: none;
+}
+
+/* brighter, faster blink when actively editing */
+#sys-title-nav.sys-focused .sys-cursor,
+#sys-title-splash.sys-focused .sys-cursor {
+    text-shadow: 0 0 12px rgba(255,255,255,0.98), 0 0 32px rgba(255,255,255,0.65), 0 0 60px rgba(255,255,255,0.3);
+    animation: blink 0.6s step-end infinite;
+}
+
+@keyframes sys-flash {
+    0%   { opacity: 1; }
+    15%  { opacity: 0.04; }
+    42%  { opacity: 0.88; }
+    68%  { opacity: 0.12; }
+    100% { opacity: 1; }
+}
+
+.sys-flash {
+    animation: sys-flash 0.7s ease forwards;
+}
+
+/* easter egg message line */
+#sys-egg-msg {
+    font-size: clamp(9px, 0.88vw, 11px);
+    color: rgba(77, 255, 136, 0.6);
+    letter-spacing: 0.09em;
+    opacity: 0;
+    transition: opacity 0.35s ease;
+    min-height: 1.5em;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* smooth transition on/off eggs */
+#menu,
+.content-panel,
+#notes-panel {
+    transition: filter 0.65s ease;
+}
+
+body.egg-void #menu,
+body.egg-void .content-panel,
+body.egg-void #notes-panel {
+    filter: sepia(1) hue-rotate(205deg) saturate(1.7) brightness(0.72);
+}
+
+body.egg-nexus #menu,
+body.egg-nexus .content-panel,
+body.egg-nexus #notes-panel {
+    filter: hue-rotate(155deg) saturate(1.5);
+}
+
+body.egg-genesis #menu,
+body.egg-genesis .content-panel,
+body.egg-genesis #notes-panel {
+    filter: sepia(0.45) hue-rotate(22deg) saturate(1.45) brightness(1.1);
+}
+
 /* ── CRT scan-line overlay ───────────────────────────────────── */
 
 #crt-overlay {
