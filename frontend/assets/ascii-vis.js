@@ -73,8 +73,13 @@ window.__asciiVis = (function () {
     var GREENS = ['#030','#151','#272','#393','#4b4','#5d5','#6f6','#8f8'];
     var BLUES  = ['#003','#115','#227','#339','#44b','#55d','#66f','#99f'];
 
-    // ── Canvas (lives inside the audio-sys terminal's output pane) ────
+    // ── Canvases (live inside the audio-sys terminal's output pane) ───
+    // `canvas`     — crisp characters, own trail/decay pass.
+    // `glowCanvas` — blurred, screen-blended copy of the frame above it,
+    //                giving the same soft halo as the terminal's text-shadow
+    //                plus a CRT-phosphor bleed between neighbouring glyphs.
     var container = document.getElementById('audio-sys-out');
+
     var canvas = document.createElement('canvas');
     canvas.id  = 'ascii-vis-canvas';
     canvas.style.cssText =
@@ -82,15 +87,28 @@ window.__asciiVis = (function () {
         'z-index:5;display:none;pointer-events:none;background:#000;';
     container.appendChild(canvas);
 
+    var glowCanvas = document.createElement('canvas');
+    glowCanvas.id  = 'ascii-vis-glow';
+    glowCanvas.style.cssText =
+        'position:absolute;top:0;left:0;width:100%;height:100%;' +
+        'z-index:6;display:none;pointer-events:none;' +
+        'mix-blend-mode:screen;opacity:0.9;filter:blur(3px) saturate(1.35);';
+    container.appendChild(glowCanvas);
+
     var ctx2d = canvas.getContext('2d');
+    var glowCtx = glowCanvas.getContext('2d');
     var CW = 10, CH = 17;
     var COLS = 0, ROWS = 0;
     var rowShifts = [];
 
     function resize() {
         var rect = container.getBoundingClientRect();
-        canvas.width  = Math.max(1, Math.round(rect.width));
-        canvas.height = Math.max(1, Math.round(rect.height));
+        var w = Math.max(1, Math.round(rect.width));
+        var h = Math.max(1, Math.round(rect.height));
+        canvas.width  = w;
+        canvas.height = h;
+        glowCanvas.width  = w;
+        glowCanvas.height = h;
         ctx2d.font = '14px "Courier New",Courier,monospace';
         var mw = ctx2d.measureText('M').width;
         CW   = Math.max(8, Math.ceil(mw));
@@ -115,8 +133,11 @@ window.__asciiVis = (function () {
     var glitchAmt  = 0;
     var flashAmt   = 0;
     var lastBass   = 0;
+    var lastMid    = 0;
+    var lastHigh   = 0;
     var artIdx     = 0;
     var artX       = 0, artY = 0;
+    var artShakeX  = 0, artShakeY = 0;
     var artCooldown = 0;
     var scanY      = 0;
     var freqBuf    = null;  // reused Uint8Array, avoids GC per frame
@@ -156,40 +177,54 @@ window.__asciiVis = (function () {
             energy = bass * 0.50 + mid * 0.33 + high * 0.17;
         }
 
-        // ── Beat detection → glitch trigger ──────────────────────────
-        var delta = bass - lastBass;
-        if (delta > 0.12) {
-            flashAmt  = Math.min(1.0, flashAmt  + delta * 2.0);
-            glitchAmt = Math.min(1.0, glitchAmt + delta * 3.0);
-            for (var ri = 0; ri < 4; ri++) {
+        // ── Transient detection (bass+mid+high) → glitch trigger ──────
+        var transient = Math.max(0, bass - lastBass) +
+                         Math.max(0, mid  - lastMid)  * 0.6 +
+                         Math.max(0, high - lastHigh) * 0.5;
+
+        if (transient > 0.035) {
+            flashAmt  = Math.min(1.0, flashAmt  + transient * 1.8);
+            glitchAmt = Math.min(1.0, glitchAmt + transient * 2.6);
+            var shiftCount = 2 + Math.floor(transient * 14);
+            for (var ri = 0; ri < shiftCount; ri++) {
                 var rr = Math.floor(Math.random() * ROWS);
                 if (rr < rowShifts.length) {
                     rowShifts[rr] = (Math.random() < 0.5 ? 1 : -1) *
-                                    (Math.floor(Math.random() * 5) + 1);
+                                    (Math.floor(Math.random() * 6) + 1);
                 }
             }
-            if (--artCooldown <= 0) {
+            if (transient > 0.08 && --artCooldown <= 0) {
                 artIdx = (artIdx + 1) % ART.length;
                 var art = ART[artIdx];
                 artX = Math.floor(Math.random() * Math.max(1, COLS - art[0].length - 2)) + 1;
                 artY = Math.floor(Math.random() * Math.max(1, ROWS - art.length  - 4)) + 2;
-                artCooldown = 7 + Math.floor(Math.random() * 9);
+                artCooldown = 4 + Math.floor(Math.random() * 7);
             }
         }
         lastBass = bass * 0.55 + lastBass * 0.45;
+        lastMid  = mid  * 0.55 + lastMid  * 0.45;
+        lastHigh = high * 0.55 + lastHigh * 0.45;
+
+        // Ambient floor — keeps a baseline flicker alive through loud
+        // passages instead of only reacting to sharp onsets.
+        glitchAmt = Math.max(glitchAmt, energy * 0.22);
 
         // Decay
         flashAmt  = Math.max(0, flashAmt  - 0.07);
-        glitchAmt = Math.max(0, glitchAmt - 0.035);
+        glitchAmt = Math.max(0, glitchAmt - 0.028);
         for (var j = 0; j < rowShifts.length; j++) {
             if (rowShifts[j] !== 0 && Math.random() < 0.22) rowShifts[j] = 0;
         }
-        colorPhase += 0.0025 + energy * 0.007;
-        scanY = (scanY + 2 + Math.floor(energy * 4)) % (ROWS + 4);
-        t += 0.018;
+        colorPhase += 0.004 + energy * 0.014;
+        scanY = (scanY + 2 + Math.floor(energy * 6)) % (ROWS + 4);
+        t += 0.02 + energy * 0.05;
 
-        // ── Render ────────────────────────────────────────────────────
-        ctx2d.fillStyle = 'rgba(0,0,0,0.82)';
+        artShakeX = glitchAmt > 0.3 ? Math.round((Math.random() - 0.5) * 3) : 0;
+        artShakeY = glitchAmt > 0.3 ? Math.round((Math.random() - 0.5) * 2) : 0;
+
+        // ── Render (crisp pass) ─────────────────────────────────────────
+        var trailAlpha = 0.88 - Math.min(0.34, energy * 0.30 + flashAmt * 0.22);
+        ctx2d.fillStyle = 'rgba(0,0,0,' + trailAlpha.toFixed(3) + ')';
         ctx2d.fillRect(0, 0, canvas.width, canvas.height);
         ctx2d.font = '14px "Courier New",Courier,monospace';
         ctx2d.textBaseline = 'top';
@@ -214,11 +249,29 @@ window.__asciiVis = (function () {
         ctx2d.font = '10px "Courier New",Courier,monospace';
         ctx2d.textBaseline = 'bottom';
         ctx2d.fillText('// ESC TO STOP', 6, canvas.height - 3);
+
+        // ── Glow pass — blurred, screen-blended copy = phosphor bloom ──
+        glowCtx.clearRect(0, 0, glowCanvas.width, glowCanvas.height);
+        glowCtx.globalCompositeOperation = 'source-over';
+        glowCtx.globalAlpha = Math.min(1, 0.55 + energy * 0.35 + flashAmt * 0.5);
+        glowCtx.drawImage(canvas, 0, 0);
+
+        // Chromatic fringing on hard hits — RGB bleed, like CRT edge tear
+        if (glitchAmt > 0.1) {
+            var off = 1 + Math.floor(glitchAmt * 3);
+            glowCtx.globalCompositeOperation = 'lighter';
+            glowCtx.globalAlpha = Math.min(0.6, glitchAmt * 0.55);
+            glowCtx.drawImage(canvas, -off, 0);
+            glowCtx.drawImage(canvas, off, 0);
+        }
+        glowCtx.globalAlpha = 1;
+        glowCanvas.style.filter = 'blur(' + (2.5 + flashAmt * 3.5).toFixed(1) +
+                                   'px) saturate(1.35)';
     }
 
     function getChar(col, row, bass, mid, high, energy, art) {
         // ── Art scene overlay ──
-        var ar = row - artY, ac = col - artX;
+        var ar = row - artY - artShakeY, ac = col - artX - artShakeX;
         if (ar >= 0 && ar < art.length &&
             ac >= 0 && ac < art[ar].length) {
             var artCh = art[ar].charAt(ac);
@@ -252,7 +305,7 @@ window.__asciiVis = (function () {
 
         var density = wave * (0.15 + energy * 0.60);
 
-        if (glitchAmt > 0.25 && Math.random() < glitchAmt * 0.10) {
+        if (glitchAmt > 0.12 && Math.random() < glitchAmt * 0.14) {
             return NOISE.charAt(Math.floor(Math.random() * NOISE.length));
         }
         if (density > 0.70) return BLOCK.charAt(Math.floor(wave * BLOCK.length) % BLOCK.length);
@@ -286,14 +339,19 @@ window.__asciiVis = (function () {
         glitchAmt  = 0;
         flashAmt   = 0;
         lastBass   = 0;
+        lastMid    = 0;
+        lastHigh   = 0;
         artIdx     = 0;
         var a0     = ART[0];
         artX       = Math.floor((COLS - a0[0].length) / 2);
         artY       = Math.floor((ROWS - a0.length)    / 2);
-        artCooldown = 12;
+        artShakeX  = 0;
+        artShakeY  = 0;
+        artCooldown = 8;
         scanY      = 0;
         lastTs     = 0;
         canvas.style.display = 'block';
+        glowCanvas.style.display = 'block';
         rafId = requestAnimationFrame(loop);
     }
 
@@ -301,7 +359,9 @@ window.__asciiVis = (function () {
         running = false;
         if (rafId) { cancelAnimationFrame(rafId); rafId = null; }
         canvas.style.display = 'none';
+        glowCanvas.style.display = 'none';
         ctx2d.clearRect(0, 0, canvas.width, canvas.height);
+        glowCtx.clearRect(0, 0, glowCanvas.width, glowCanvas.height);
     }
 
     return {
