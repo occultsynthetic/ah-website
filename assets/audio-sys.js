@@ -19,6 +19,7 @@
         '//  AVAILABLE COMMANDS:',
         '//',
         '//  HELP    — display this list',
+        '//  ASCII   — toggle audio-reactive ASCII visualiser',
         '//  EXIT    — return to MEGASTRUCTURE.SYS',
         '//',
     ];
@@ -35,6 +36,17 @@
 
     var COMMANDS = {
         help: function () { appendLines(HELP); },
+        ascii: function () {
+            var vis = window.__asciiVis;
+            if (!vis) { appendLines(['// VISUALISER NOT AVAILABLE']); return; }
+            if (vis.isRunning()) {
+                vis.stop();
+                appendLines(['// ASCII VISUALISER — OFF']);
+            } else {
+                vis.start();
+                appendLines(['// ASCII VISUALISER — ON', '// TYPE ASCII + ENTER TO STOP']);
+            }
+        },
         exit: function () { hide(); },
     };
 
@@ -101,7 +113,12 @@
             cmdEl.value = '';
             runCmd(val);
         } else if (e.key === 'Escape') {
-            hide();
+            if (window.__asciiVis && window.__asciiVis.isRunning()) {
+                window.__asciiVis.stop();
+                appendLines(['// ASCII VISUALISER — OFF']);
+            } else {
+                hide();
+            }
         }
     });
 
