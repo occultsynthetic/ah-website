@@ -29,7 +29,8 @@ window.__music = (function () {
         // 6: 4/4 reference       (3.0 s)
         {n: 8,p:[0,2,4,6],     b:[0,2,5,6],  vp:[1.0,.70,.90,.70],    vb:[1.0,.75,.80,.65]},
     ];
-    var BWALK = [0,7,10,0,5,12,3,7];
+    // Chord turnover interval, shared by the scheduler and the bass walk-ups
+    var BARS_TO_CHORD = 4;
 
     // ── Song form ───────────────────────────────────────────────────
     // 16-bar sections rather than a 2–4 bar template shuffle: the old
@@ -46,16 +47,16 @@ window.__music = (function () {
     // mv  = melody voice index into MEL_VOICES
     var SECTIONS = [
         // name      tmpl drums drumG tone  sub  noise pad  bass mel  stab      swarm
-        {n:'INTRO',  t:4, d:0, dg:0.00, to:0.60, sb:1.00, nz:1.45, pd:0.72, bs:0.45, ml:false, st:'sparse', swE:4, swD:4.5, swR:'tex',  mv:0},
-        {n:'RISE',   t:0, d:1, dg:0.55, to:0.80, sb:1.00, nz:1.15, pd:0.90, bs:0.85, ml:true,  st:'alt',    swE:4, swD:3.0, swR:'lead', mv:0},
-        {n:'MAIN',   t:0, d:2, dg:1.00, to:1.00, sb:1.00, nz:0.90, pd:1.00, bs:1.00, ml:true,  st:'full',   swE:4, swD:3.0, swR:'lead', mv:1},
-        {n:'LIFT',   t:6, d:3, dg:1.15, to:1.25, sb:1.10, nz:1.00, pd:1.10, bs:1.10, ml:true,  st:'dense',  swE:4, swD:4.0, swR:'peak', mv:3},
+        {n:'INTRO',  t:4, d:0, dg:0.00, to:0.60, sb:1.00, nz:1.45, pd:0.72, ml:false, st:'sparse', swE:4, swD:4.5, swR:'tex',  mv:0, bst:'tail'},
+        {n:'RISE',   t:0, d:1, dg:0.55, to:0.80, sb:1.00, nz:1.15, pd:0.90, ml:true,  st:'alt',    swE:4, swD:3.0, swR:'lead', mv:0, bst:'lock'},
+        {n:'MAIN',   t:0, d:2, dg:1.00, to:1.00, sb:1.00, nz:0.90, pd:1.00, ml:true,  st:'full',   swE:4, swD:3.0, swR:'lead', mv:1, bst:'walk'},
+        {n:'LIFT',   t:6, d:3, dg:1.15, to:1.25, sb:1.10, nz:1.00, pd:1.10, ml:true,  st:'dense',  swE:4, swD:4.0, swR:'peak', mv:3, bst:'drive'},
         // The drop: drums fall away right after the biggest build and the
         // swarm carries the section on its own
-        {n:'VOID',   t:5, d:0, dg:0.00, to:0.55, sb:1.20, nz:1.60, pd:0.70, bs:0.40, ml:false, st:'sparse', swE:4, swD:5.0, swR:'tex',  mv:2},
-        {n:'RETURN', t:2, d:2, dg:1.00, to:1.05, sb:1.00, nz:0.85, pd:1.00, bs:1.00, ml:true,  st:'push',   swE:4, swD:3.0, swR:'lead', mv:2},
-        {n:'PEAK',   t:6, d:3, dg:1.25, to:1.35, sb:1.15, nz:1.10, pd:1.15, bs:1.15, ml:true,  st:'dense',  swE:4, swD:4.0, swR:'peak', mv:3},
-        {n:'FADE',   t:3, d:1, dg:0.45, to:0.70, sb:0.90, nz:1.30, pd:0.80, bs:0.60, ml:false, st:'tail',   swE:5, swD:5.0, swR:'tex',  mv:0},
+        {n:'VOID',   t:5, d:0, dg:0.00, to:0.55, sb:1.20, nz:1.60, pd:0.70, ml:false, st:'sparse', swE:4, swD:5.0, swR:'tex',  mv:2, bst:'tail'},
+        {n:'RETURN', t:2, d:2, dg:1.00, to:1.05, sb:1.00, nz:0.85, pd:1.00, ml:true,  st:'push',   swE:4, swD:3.0, swR:'lead', mv:2, bst:'walk'},
+        {n:'PEAK',   t:6, d:3, dg:1.25, to:1.35, sb:1.15, nz:1.10, pd:1.15, ml:true,  st:'dense',  swE:4, swD:4.0, swR:'peak', mv:3, bst:'drive'},
+        {n:'FADE',   t:3, d:1, dg:0.45, to:0.70, sb:0.90, nz:1.30, pd:0.80, ml:false, st:'tail',   swE:5, swD:5.0, swR:'tex',  mv:0, bst:'tail'},
     ];
 
     // ── Melody voices ───────────────────────────────────────────────
@@ -170,7 +171,6 @@ window.__music = (function () {
 
     var stepInBar  = 0;
     var barCount   = 0;
-    var bwalkI     = 0;
 
     // Song-form state
     var secIdx     = 0;
@@ -301,7 +301,6 @@ window.__music = (function () {
     }
 
     function mtof(m) { return 440 * Math.pow(2, (m - 69) / 12); }
-    function inArr(a, v) { for (var i=0;i<a.length;i++) if(a[i]===v)return i; return -1; }
 
     // ── Reverb IR ────────────────────────────────────────────────────
     function makeIR(sec, exp) {
@@ -504,18 +503,107 @@ window.__music = (function () {
         return out;
     }
 
-    // ── Bass note ────────────────────────────────────────────────────
-    function triggerBass(when) {
-        var ivl = BWALK[bwalkI % BWALK.length]; bwalkI++;
+    // ── Bass ─────────────────────────────────────────────────────────
+    // semis is relative to the current chord root, so every note is
+    // harmonically placed rather than stepped through a fixed cycle.
+    function triggerBass(when, semis, vel, dur, glideFrom) {
         var osc = ctx.createOscillator(); osc.type = 'sawtooth';
-        osc.frequency.value = mtof(curRoot + ivl);
+        var f = mtof(curRoot + semis);
+        if (glideFrom !== undefined) {
+            osc.frequency.setValueAtTime(mtof(curRoot + glideFrom), when);
+            osc.frequency.exponentialRampToValueAtTime(f, when + 0.055);
+        } else {
+            osc.frequency.value = f;
+        }
         var g = ctx.createGain();
         g.gain.setValueAtTime(0.001, when);
-        g.gain.linearRampToValueAtTime(0.162 * P.bassLevel, when+0.007);
-        g.gain.setTargetAtTime(0.001, when+0.007, 0.20);
+        g.gain.linearRampToValueAtTime(0.162 * P.bassLevel * vel, when + 0.007);
+        g.gain.setTargetAtTime(0.001, when + 0.007, dur);
         osc.connect(g); g.connect(bassFilter);
-        osc.start(when); osc.stop(when+1.2);
+        osc.start(when); osc.stop(when + dur * 4 + 0.25);
         osc.onended = function(){try{g.disconnect();osc.disconnect();}catch(e){}};
+    }
+
+    // Pitch choices, all drawn from the chord actually sounding
+    function bassPitch(kind, rnd) {
+        var iv = curChord ? curChord.iv : [0, 7, 10];
+        var sc = SCALES[curChord ? curChord.sc : 'dorian'];
+        if (kind === 'root') {
+            var r = rnd();
+            return r < 0.74 ? 0 : (r < 0.90 ? -12 : 7);   // mostly root, sometimes octave down / fifth
+        }
+        if (kind === 'chord') return iv[Math.floor(rnd() * iv.length)] % 12;
+        return sc[Math.floor(rnd() * sc.length)];
+    }
+
+    // Leading tone a semitone either side of the chord we're about to land on
+    function bassApproach(rnd) {
+        var next = CHORDS[curProg[(progPos + 1) % curProg.length]];
+        return (next.r + semis + (rnd() < 0.5 ? 1 : -1)) - curRoot;
+    }
+
+    // One bar of bass, built against the kick pattern of the current groove.
+    // Anchoring to the kick is what ties the low end to the drums instead of
+    // running on its own fixed grid of downbeats.
+    function schedBassBar(barT, rnd) {
+        var style = curSec.bst;
+        if (style === 'off') return;
+
+        var grv   = DGRV[curTmplIdx];
+        var steps = curTmpl.n * 2;
+        var kicks = [];
+        for (var ki = 0; ki < grv.k.length; ki++) kicks.push(grv.k[ki][0]);
+
+        var notes = [];
+        var i, p;
+
+        if (style === 'tail') {
+            // Long held root — for the drumless sections
+            notes.push({p: 0, k: 'root', vel: 0.92, dur: 1.9});
+            if (rnd() < 0.45) notes.push({p: steps - 6, k: 'chord', vel: 0.55, dur: 0.9});
+        } else {
+            // Every style lands on the kicks
+            for (i = 0; i < kicks.length; i++) {
+                if (style === 'lock' && i > 0 && rnd() < 0.30) continue;
+                notes.push({p: kicks[i], k: 'root', vel: i === 0 ? 1.0 : 0.86, dur: 0.42});
+            }
+            // Answer the snare a fifth up
+            if (style === 'lock' || style === 'walk') {
+                for (i = 0; i < grv.s.length; i++) {
+                    if (rnd() < 0.45) {
+                        notes.push({p: grv.s[i][0], k: 'fifth', vel: 0.68, dur: 0.30});
+                    }
+                }
+            }
+            // Chord tones on the template's own bass positions
+            if (style === 'walk' || style === 'drive') {
+                for (i = 0; i < curTmpl.b.length; i++) {
+                    p = curTmpl.b[i] * 2;
+                    if (kicks.indexOf(p) !== -1) continue;
+                    if (rnd() < 0.62) notes.push({p: p, k: 'chord', vel: 0.74, dur: 0.32});
+                }
+            }
+            // Driving sixteenths between the hits
+            if (style === 'drive') {
+                for (p = 1; p < steps; p += 2) {
+                    if (rnd() < 0.30) notes.push({p: p, k: 'chord', vel: 0.58, dur: 0.18});
+                }
+            }
+            // Walk into the next chord on the last sixteenth
+            if ((barCount + 1) % BARS_TO_CHORD === 0 && rnd() < 0.85) {
+                notes.push({p: steps - 1, k: 'approach', vel: 0.82, dur: 0.26});
+            }
+        }
+
+        for (i = 0; i < notes.length; i++) {
+            var n = notes[i];
+            var semisRel = n.k === 'approach' ? bassApproach(rnd)
+                         : n.k === 'fifth'    ? 7
+                         : bassPitch(n.k, rnd);
+            // Occasional short slide up into a note, for phrasing
+            var glide = (n.k === 'root' && rnd() < 0.12) ? semisRel - 2 : undefined;
+            triggerBass(barT + n.p * DSTEP, semisRel, n.vel, n.dur, glide);
+        }
     }
 
     // ── Drum voices ───────────────────────────────────────────────────
@@ -969,7 +1057,6 @@ window.__music = (function () {
     // ── Lookahead scheduler ───────────────────────────────────────────
     function tick() {
         while (nextStepT < ctx.currentTime + AHEAD) {
-            var barsToChord = 4;                       // chord turns over every 4 bars
             var lastBarOfSection = (secBar === SECTION_BARS - 1);
             var rnd = barRng(barCount + 1);
             var stabs = stabsForBar(curTmpl, curSec.st, rnd);
@@ -1010,19 +1097,21 @@ window.__music = (function () {
                     }
                 }
                 if (curSec.ml && nextStepT >= melNextT) schedMelPhrase(nextStepT);
+
+                // Bass is built a bar at a time against the groove's kick
+                // pattern, so it has to be scheduled here rather than stepped
+                // through on the eighth-note grid like the pads.
+                schedBassBar(nextStepT, barRng(barCount + 977));
             }
 
-            // Pads follow the section's stab style; bass thins in quiet sections
+            // Pads follow the section's stab style
             for (var si = 0; si < stabs.length; si++) {
                 if (stabs[si][0] === stepInBar) {
                     triggerPad(nextStepT, stabs[si][1] * curSec.pd);
                 }
             }
-            var bi = inArr(curTmpl.b, stepInBar);
-            if (bi !== -1 && rnd() < curSec.bs) triggerBass(nextStepT);
-
             // Passing chord on the final eighth before the chord turns over
-            if (stepInBar === curTmpl.n - 1 && (barCount + 1) % barsToChord === 0) {
+            if (stepInBar === curTmpl.n - 1 && (barCount + 1) % BARS_TO_CHORD === 0) {
                 schedPassingChord(nextStepT + STEP * 0.5,
                                   CHORDS[curProg[(progPos + 1) % curProg.length]], rnd);
             }
@@ -1035,7 +1124,7 @@ window.__music = (function () {
                 barCount++;
                 secBar++;
 
-                if (barCount % barsToChord === 0) {
+                if (barCount % BARS_TO_CHORD === 0) {
                     progPos = (progPos+1) % curProg.length;
                     setChordState(CHORDS[curProg[progPos]]);
                 }
