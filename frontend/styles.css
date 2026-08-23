@@ -158,6 +158,81 @@ html, body {
     text-shadow: 0 0 6px rgba(255, 68, 85, 0.85), 0 0 18px rgba(255, 68, 85, 0.4), 0 0 40px rgba(255, 68, 85, 0.15);
 }
 
+/* ── landing statement ────────────────────────────────────── */
+
+/* Sits below #glitch-canvas (25) so the glitch/displacement layer washes
+   over it like everything else in the scene. pointer-events:none keeps the
+   3D canvas and the menu fully interactive underneath. */
+#manifesto {
+    position: fixed;
+    top: clamp(4rem, 10vh, 8.5rem);
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 20;
+    width: min(46rem, 84vw);
+    text-align: center;
+    font-family: 'IBMPlexMono', 'Courier New', 'Courier', monospace;
+    color: #fff;
+    pointer-events: none;
+    user-select: none;
+    /* Visible by default — the splash is an opaque layer above it, so its
+       fade-out is what reveals this. Deliberately not gated behind a
+       JS-applied class: the statement should never depend on a script
+       having run to be readable. */
+    transition: opacity 0.55s ease, transform 0.55s ease;
+}
+
+.mf-line { display: block; }
+
+/* letter-spacing adds a trailing gap on the last glyph, which pulls
+   centred lines visually left — text-indent puts it back. */
+.mf-lead {
+    font-size: clamp(15px, 2.45vw, 30px);
+    line-height: 1.42;
+    letter-spacing: 0.17em;
+    text-indent: 0.17em;
+    text-shadow: 0 0 10px rgba(255,255,255,0.5), 0 0 30px rgba(255,255,255,0.18),
+                 0 0 70px rgba(255,255,255,0.07);
+}
+
+.mf-rule {
+    width: clamp(2.5rem, 5vw, 4rem);
+    height: 1px;
+    margin: clamp(1.5rem, 3.2vh, 2.6rem) auto;
+    background: rgba(255, 255, 255, 0.26);
+}
+
+.mf-body {
+    font-size: clamp(10px, 1.45vw, 17px);
+    line-height: 1.85;
+    letter-spacing: 0.25em;
+    text-indent: 0.25em;
+    color: rgba(255, 255, 255, 0.52);
+    text-shadow: 0 0 8px rgba(255,255,255,0.22);
+}
+
+/* Recede while a panel or the notes reader is open — this belongs to the
+   landing state, not to reading mode. */
+body:has(.content-panel:not(.panel-hidden)) #manifesto,
+body:has(#notes-panel:not(.notes-hidden)) #manifesto {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-0.6rem);
+}
+
+/* Below ~700px the nav occupies the whole upper right, so the statement
+   drops beneath it rather than running underneath the menu items. */
+@media (max-width: 700px) {
+    /* The nav's height is driven by its font size, not by viewport height, so
+       a pure vh offset collides on short screens — the rem floor guarantees
+       clearance beneath it at any phone height. */
+    #manifesto {
+        top: max(17.5rem, 30vh);
+        width: 88vw;
+    }
+    .mf-lead { font-size: clamp(13px, 4.3vw, 22px); letter-spacing: 0.13em; text-indent: 0.13em; }
+    .mf-body { font-size: clamp(10px, 2.9vw, 13px); letter-spacing: 0.19em; text-indent: 0.19em; }
+}
+
 /* ── shared panel base ────────────────────────────────────── */
 
 /* z-index 26 puts panels above #glitch-canvas (25) but below #menu (30) */
@@ -622,6 +697,7 @@ body.egg-genesis #notes-panel {
 body.into-audio-sys #canvas,
 body.into-audio-sys nav#menu,
 body.into-audio-sys .content-panel,
+body.into-audio-sys #manifesto,
 body.into-audio-sys #notes-panel {
     animation: asys-crunch-out 0.44s steps(7, end) forwards;
     pointer-events: none;
@@ -630,13 +706,15 @@ body.into-audio-sys #notes-panel {
 body.audio-sys-active #canvas,
 body.audio-sys-active nav#menu,
 body.audio-sys-active .content-panel,
+body.audio-sys-active #manifesto,
 body.audio-sys-active #notes-panel {
     opacity: 0;
     pointer-events: none;
 }
 
 body.from-audio-sys #canvas,
-body.from-audio-sys nav#menu {
+body.from-audio-sys nav#menu,
+body.from-audio-sys #manifesto {
     animation: asys-crunch-in 0.44s steps(7, end) forwards;
 }
 

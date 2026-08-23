@@ -173,6 +173,15 @@
             }
             splashEl.classList.add('splash-out');
             setTimeout(function () { splashEl.style.display = 'none'; }, 540);
+
+            // Resolve the landing statement out of noise as the splash clears,
+            // so it arrives the same way the rest of the UI does.
+            var mf = document.getElementById('manifesto');
+            if (mf) {
+                setTimeout(function () {
+                    scrambleAll(mf, 0, { mode: 'rand', minDur: 900, maxDur: 1500 });
+                }, 300);
+            }
         }
 
         if (splashEnter) splashEnter.addEventListener('click', dismissSplash);
