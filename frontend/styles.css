@@ -4,11 +4,71 @@
     font-display: swap;
 }
 
+/* ── design tokens ────────────────────────────────────────────
+   Bone rather than pure white: the specimen-sheet look comes partly
+   from ink that reads as pigment on dark stock, not as backlit #fff. */
+:root {
+    --bone:    232, 228, 217;
+    --rule-lo: rgba(var(--bone), 0.06);
+    --rule-md: rgba(var(--bone), 0.16);
+    --rule-hi: rgba(var(--bone), 0.34);
+    /* Density envelope for glyph-drawn rules (────) so they don't read flat */
+    --rule-fade: linear-gradient(90deg,
+        #000 0%, rgba(0,0,0,0.30) 17%, #000 34%, rgba(0,0,0,0.55) 46%,
+        #000 61%, rgba(0,0,0,0.22) 78%, rgba(0,0,0,0.85) 100%);
+}
+
 * {
     margin: 0;
     padding: 0;
     box-sizing: border-box;
 }
+
+/* ── texture field ────────────────────────────────────────────
+   Sparse dust only — a threshold on high-frequency noise. Sits above the
+   3D canvas but below the UI so chrome stays crisp on top of it. */
+#texture-field {
+    position: fixed;
+    inset: 0;
+    z-index: 2;
+    pointer-events: none;
+    opacity: 0.09;
+    background-image:
+        url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='s'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.55' numOctaves='1' seed='3' stitchTiles='stitch'/%3E%3CfeComponentTransfer%3E%3CfeFuncA type='discrete' tableValues='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1'/%3E%3C/feComponentTransfer%3E%3C/filter%3E%3Crect width='300' height='300' filter='url(%23s)' fill='%23e8e4d9'/%3E%3C/svg%3E");
+    background-size: 300px 300px;
+}
+
+/* ── broken measurement rules ─────────────────────────────────
+   Irregular dash lengths at three different alphas, so a rule reads as
+   a drafting guide that fades and breaks along its run rather than a
+   single flat stroke. */
+.rule-broken {
+    background-image: repeating-linear-gradient(90deg,
+        var(--rule-hi) 0 7px,
+        var(--rule-lo) 7px 12px,
+        var(--rule-md) 12px 27px,
+        transparent    27px 36px,
+        var(--rule-lo) 36px 50px,
+        var(--rule-hi) 50px 54px,
+        transparent    54px 63px);
+    background-repeat: repeat-x;
+}
+
+/* End ticks — the short cross-strokes that terminate a dimension line */
+.rule-ticked { position: relative; }
+
+.rule-ticked::before,
+.rule-ticked::after {
+    content: '';
+    position: absolute;
+    top: -2px;
+    width: 1px;
+    height: 5px;
+    background: rgba(var(--bone), 0.38);
+}
+
+.rule-ticked::before { left: 0; }
+.rule-ticked::after  { right: 0; }
 
 html, body {
     width: 100%;
@@ -86,11 +146,12 @@ html, body {
     50% { opacity: 0; }
 }
 
+/* No background here — the .rule-broken utility supplies it. A shorthand
+   `background` reset would win on source order and blank the dashes. */
 .menu-rule {
     width: 100%;
     height: 1px;
-    background: rgba(255, 255, 255, 0.18);
-    margin: 0.45em 0;
+    margin: 0.55em 0;
 }
 
 .menu-item {
@@ -158,6 +219,29 @@ html, body {
     text-shadow: 0 0 6px rgba(255, 68, 85, 0.85), 0 0 18px rgba(255, 68, 85, 0.4), 0 0 40px rgba(255, 68, 85, 0.15);
 }
 
+/* ── spec readout (top-left) ──────────────────────────────── */
+
+#sys-spec {
+    position: fixed;
+    top: clamp(1rem, 3vw, 2rem);
+    left: clamp(1rem, 3vw, 2rem);
+    z-index: 10;
+    font-family: 'IBMPlexMono', 'Courier New', 'Courier', monospace;
+    font-size: clamp(9px, 0.78vw, 11px);
+    line-height: 1.95;
+    letter-spacing: 0.15em;
+    color: rgba(var(--bone), 0.34);
+    user-select: none;
+    pointer-events: none;
+}
+
+/* Fixed-width key column so every colon lands on the same axis — the
+   aligned-colon table is what makes the block read as a spec sheet. */
+.spec-row { display: flex; }
+.spec-k   { width: 7ch; flex-shrink: 0; }
+.spec-c   { width: 2ch; flex-shrink: 0; color: rgba(var(--bone), 0.2); }
+.spec-v   { color: rgba(var(--bone), 0.58); }
+
 /* ── landing statement ────────────────────────────────────── */
 
 /* Sits below #glitch-canvas (25) so the glitch/displacement layer washes
@@ -195,12 +279,30 @@ html, body {
                  0 0 70px rgba(255,255,255,0.07);
 }
 
+/* The one focal rule — solid at the centre, dissolving at both ends,
+   with tick ends. Non-monotone without being visibly dashed. */
 .mf-rule {
-    width: clamp(2.5rem, 5vw, 4rem);
+    position: relative;
+    width: clamp(3rem, 6vw, 4.75rem);
     height: 1px;
     margin: clamp(1.5rem, 3.2vh, 2.6rem) auto;
-    background: rgba(255, 255, 255, 0.26);
+    background: linear-gradient(90deg,
+        transparent 0%, rgba(var(--bone), 0.12) 14%, rgba(var(--bone), 0.46) 42%,
+        rgba(var(--bone), 0.46) 58%, rgba(var(--bone), 0.12) 86%, transparent 100%);
 }
+
+.mf-rule::before,
+.mf-rule::after {
+    content: '';
+    position: absolute;
+    top: -2px;
+    width: 1px;
+    height: 5px;
+    background: rgba(var(--bone), 0.3);
+}
+
+.mf-rule::before { left: 0; }
+.mf-rule::after  { right: 0; }
 
 .mf-body {
     font-size: clamp(10px, 1.45vw, 17px);
@@ -245,8 +347,26 @@ body:has(#notes-panel:not(.notes-hidden)) #manifesto {
     z-index: 26;
     width: min(960px, 88vw);
     height: min(78vh, 680px);
-    background: rgba(4, 5, 7, 0.96);
-    border: 1px solid rgba(255, 255, 255, 0.08);
+    background-color: rgba(4, 5, 7, 0.96);
+    /* Registration marks at the corners instead of a continuous frame —
+       eight short strokes, two per corner. */
+    background-image:
+        linear-gradient(var(--rule-hi), var(--rule-hi)), linear-gradient(var(--rule-hi), var(--rule-hi)),
+        linear-gradient(var(--rule-hi), var(--rule-hi)), linear-gradient(var(--rule-hi), var(--rule-hi)),
+        linear-gradient(var(--rule-hi), var(--rule-hi)), linear-gradient(var(--rule-hi), var(--rule-hi)),
+        linear-gradient(var(--rule-hi), var(--rule-hi)), linear-gradient(var(--rule-hi), var(--rule-hi));
+    background-repeat: no-repeat;
+    background-size:
+        18px 1px, 1px 18px,   /* top-left    */
+        18px 1px, 1px 18px,   /* top-right   */
+        18px 1px, 1px 18px,   /* bottom-left */
+        18px 1px, 1px 18px;   /* bottom-right*/
+    background-position:
+        left top, left top,
+        right top, right top,
+        left bottom, left bottom,
+        right bottom, right bottom;
+    border: 1px solid rgba(var(--bone), 0.045);
     backdrop-filter: blur(6px);
     font-family: 'IBMPlexMono', 'Courier New', 'Courier', monospace;
     color: #ccc;
@@ -266,11 +386,28 @@ body:has(#notes-panel:not(.notes-hidden)) #manifesto {
 
 .panel-header {
     padding: 0.7rem 1.4rem;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
     display: flex;
     align-items: center;
     gap: 0.4rem;
     flex-shrink: 0;
+    position: relative;
+}
+
+/* Broken drafting rule instead of a flat 1px border */
+.panel-header::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 1px;
+    background-image: repeating-linear-gradient(90deg,
+        var(--rule-md) 0 9px,
+        var(--rule-lo) 9px 15px,
+        var(--rule-hi) 15px 19px,
+        transparent    19px 29px,
+        var(--rule-lo) 29px 46px,
+        transparent    46px 54px);
 }
 
 .panel-title {
@@ -311,19 +448,51 @@ body:has(#notes-panel:not(.notes-hidden)) #manifesto {
     width: 210px;
     min-width: 160px;
     flex-shrink: 0;
-    border-right: 1px solid rgba(255,255,255,0.07);
     display: flex;
     flex-direction: column;
     overflow: hidden;
+    position: relative;
+}
+
+/* Vertical broken rule — same drafting language, run top-to-bottom */
+#notes-sidebar::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    right: 0;
+    width: 1px;
+    background-image: repeating-linear-gradient(180deg,
+        var(--rule-md) 0 11px,
+        var(--rule-lo) 11px 18px,
+        var(--rule-hi) 18px 22px,
+        transparent    22px 34px,
+        var(--rule-lo) 34px 52px,
+        transparent    52px 61px);
 }
 
 #notes-search-bar {
     display: flex;
     align-items: center;
     padding: 0.75rem 0.9rem;
-    border-bottom: 1px solid rgba(255,255,255,0.06);
     gap: 0.35rem;
     flex-shrink: 0;
+    position: relative;
+}
+
+#notes-search-bar::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 1px;
+    background-image: repeating-linear-gradient(90deg,
+        var(--rule-md) 0 8px,
+        transparent    8px 14px,
+        var(--rule-lo) 14px 27px,
+        var(--rule-hi) 27px 30px,
+        transparent    30px 41px);
 }
 
 .notes-prompt {
@@ -396,11 +565,27 @@ body:has(#notes-panel:not(.notes-hidden)) #manifesto {
 
 #notes-header {
     padding: 0.7rem 1.4rem;
-    border-bottom: 1px solid rgba(255,255,255,0.06);
     display: flex;
     align-items: center;
     gap: 0.4rem;
     flex-shrink: 0;
+    position: relative;
+}
+
+#notes-header::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 1px;
+    background-image: repeating-linear-gradient(90deg,
+        var(--rule-md) 0 9px,
+        var(--rule-lo) 9px 15px,
+        var(--rule-hi) 15px 19px,
+        transparent    19px 29px,
+        var(--rule-lo) 29px 46px,
+        transparent    46px 54px);
 }
 
 #notes-title {
@@ -587,15 +772,19 @@ body.egg-genesis #notes-panel {
     inset: 0;
     z-index: 200;
     pointer-events: none;
-    /* CRT scanline pattern: 2 px phosphor row (slight white lift, visible on black)
-       followed by 2 px dark gap between rows. Period = 4 px. */
-    background: repeating-linear-gradient(
-        to bottom,
-        rgba(255, 255, 255, 0.015) 0px,
-        rgba(255, 255, 255, 0.015) 2px,
-        rgba(0,   0,   0,   0.07)  2px,
-        rgba(0,   0,   0,   0.07)  4px
-    );
+    /* Fine print grain over everything (including the UI chrome), then the
+       CRT scanline pattern: 2 px phosphor row (slight white lift, visible on
+       black) followed by 2 px dark gap between rows. Period = 4 px. */
+    background-image:
+        url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23g)' opacity='0.13'/%3E%3C/svg%3E"),
+        repeating-linear-gradient(
+            to bottom,
+            rgba(232, 228, 217, 0.015) 0px,
+            rgba(232, 228, 217, 0.015) 2px,
+            rgba(0,   0,   0,   0.07)  2px,
+            rgba(0,   0,   0,   0.07)  4px
+        );
+    background-size: 140px 140px, auto;
 }
 
 /* ── Splash / disclaimer screen ─────────────────────────────── */
@@ -644,13 +833,18 @@ body.egg-genesis #notes-panel {
 }
 
 .splash-rule {
-    color: rgba(255, 255, 255, 0.22);
+    color: rgba(var(--bone), 0.26);
     text-shadow: none;
     overflow: hidden;
     white-space: nowrap;
     margin: 0.85rem 0;
     letter-spacing: 0;
     user-select: none;
+    /* These rules are drawn glyphs, so instead of restyling them the mask
+       thins and re-inks them along their run — same broken, non-monotone
+       read as the drafting rules, with the ASCII intact. */
+    -webkit-mask-image: var(--rule-fade);
+    mask-image: var(--rule-fade);
 }
 
 .splash-label {
@@ -698,6 +892,8 @@ body.into-audio-sys #canvas,
 body.into-audio-sys nav#menu,
 body.into-audio-sys .content-panel,
 body.into-audio-sys #manifesto,
+body.into-audio-sys #sys-spec,
+body.into-audio-sys #texture-field,
 body.into-audio-sys #notes-panel {
     animation: asys-crunch-out 0.44s steps(7, end) forwards;
     pointer-events: none;
@@ -707,6 +903,8 @@ body.audio-sys-active #canvas,
 body.audio-sys-active nav#menu,
 body.audio-sys-active .content-panel,
 body.audio-sys-active #manifesto,
+body.audio-sys-active #sys-spec,
+body.audio-sys-active #texture-field,
 body.audio-sys-active #notes-panel {
     opacity: 0;
     pointer-events: none;
@@ -714,7 +912,9 @@ body.audio-sys-active #notes-panel {
 
 body.from-audio-sys #canvas,
 body.from-audio-sys nav#menu,
-body.from-audio-sys #manifesto {
+body.from-audio-sys #manifesto,
+body.from-audio-sys #sys-spec,
+body.from-audio-sys #texture-field {
     animation: asys-crunch-in 0.44s steps(7, end) forwards;
 }
 
@@ -796,13 +996,15 @@ body.from-audio-sys #manifesto {
 }
 
 .asys-rule {
-    color: rgba(255, 255, 255, 0.22);
+    color: rgba(var(--bone), 0.26);
     text-shadow: none;
     overflow: hidden;
     white-space: nowrap;
     margin: 0.85rem 0;
     letter-spacing: 0;
     user-select: none;
+    -webkit-mask-image: var(--rule-fade);
+    mask-image: var(--rule-fade);
 }
 
 #audio-sys-out {
@@ -946,6 +1148,11 @@ body.from-audio-sys #manifesto {
     margin-top: 0.5rem;
     color: rgba(255, 180, 90, 0.6);
     text-shadow: none;
+}
+
+@media (max-width: 700px) {
+    /* No room for the spec block once the nav owns the upper right */
+    #sys-spec { display: none; }
 }
 
 @media (max-width: 480px) {
