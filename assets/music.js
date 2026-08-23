@@ -30,7 +30,9 @@ window.__music = (function () {
         {n: 8,p:[0,2,4,6],     b:[0,2,5,6],  vp:[1.0,.70,.90,.70],    vb:[1.0,.75,.80,.65]},
     ];
     // Chord turnover interval, shared by the scheduler and the bass walk-ups
-    var BARS_TO_CHORD = 4;
+    // Bars per chord is per-section (SECTIONS[].hr) so the harmonic rhythm
+    // accelerates with the arc; this reads it for whichever section is live.
+    function barsToChord() { return curSec.hr; }
 
     // ── Song form ───────────────────────────────────────────────────
     // 16-bar sections rather than a 2–4 bar template shuffle: the old
@@ -47,16 +49,16 @@ window.__music = (function () {
     // mv  = melody voice index into MEL_VOICES
     var SECTIONS = [
         // name      tmpl drums drumG tone  sub  noise pad  bass mel  stab      swarm
-        {n:'INTRO',  t:4, d:0, dg:0.00, to:0.60, sb:1.00, nz:1.45, pd:0.72, ml:false, st:'sparse', swE:4, swD:4.5, swR:'tex',  mv:0, bst:'tail'},
-        {n:'RISE',   t:0, d:1, dg:0.55, to:0.80, sb:1.00, nz:1.15, pd:0.90, ml:true,  st:'alt',    swE:4, swD:3.0, swR:'lead', mv:0, bst:'lock'},
-        {n:'MAIN',   t:0, d:2, dg:1.00, to:1.00, sb:1.00, nz:0.90, pd:1.00, ml:true,  st:'full',   swE:4, swD:3.0, swR:'lead', mv:1, bst:'walk'},
-        {n:'LIFT',   t:6, d:3, dg:1.15, to:1.25, sb:1.10, nz:1.00, pd:1.10, ml:true,  st:'dense',  swE:4, swD:4.0, swR:'peak', mv:3, bst:'drive'},
+        {n:'INTRO',  t:4, d:0, dg:0.00, to:0.60, sb:1.00, nz:1.45, pd:0.72, ml:false, st:'sparse', swE:4, swD:4.5, swR:'tex',  mv:0, bst:'tail',  hr:8},
+        {n:'RISE',   t:0, d:1, dg:0.55, to:0.80, sb:1.00, nz:1.15, pd:0.90, ml:true,  st:'alt',    swE:4, swD:3.0, swR:'lead', mv:0, bst:'lock',  hr:8},
+        {n:'MAIN',   t:0, d:2, dg:1.00, to:1.00, sb:1.00, nz:0.90, pd:1.00, ml:true,  st:'full',   swE:4, swD:3.0, swR:'lead', mv:1, bst:'walk',  hr:4},
+        {n:'LIFT',   t:6, d:3, dg:1.15, to:1.25, sb:1.10, nz:1.00, pd:1.10, ml:true,  st:'dense',  swE:4, swD:4.0, swR:'peak', mv:3, bst:'drive', hr:4},
         // The drop: drums fall away right after the biggest build and the
         // swarm carries the section on its own
-        {n:'VOID',   t:5, d:0, dg:0.00, to:0.55, sb:1.20, nz:1.60, pd:0.70, ml:false, st:'sparse', swE:4, swD:5.0, swR:'tex',  mv:2, bst:'tail'},
-        {n:'RETURN', t:2, d:2, dg:1.00, to:1.05, sb:1.00, nz:0.85, pd:1.00, ml:true,  st:'push',   swE:4, swD:3.0, swR:'lead', mv:2, bst:'walk'},
-        {n:'PEAK',   t:6, d:3, dg:1.25, to:1.35, sb:1.15, nz:1.10, pd:1.15, ml:true,  st:'dense',  swE:4, swD:4.0, swR:'peak', mv:3, bst:'drive'},
-        {n:'FADE',   t:3, d:1, dg:0.45, to:0.70, sb:0.90, nz:1.30, pd:0.80, ml:false, st:'tail',   swE:5, swD:5.0, swR:'tex',  mv:0, bst:'tail'},
+        {n:'VOID',   t:5, d:0, dg:0.00, to:0.55, sb:1.20, nz:1.60, pd:0.70, ml:false, st:'sparse', swE:4, swD:5.0, swR:'tex',  mv:2, bst:'tail',  hr:8},
+        {n:'RETURN', t:2, d:2, dg:1.00, to:1.05, sb:1.00, nz:0.85, pd:1.00, ml:true,  st:'push',   swE:4, swD:3.0, swR:'lead', mv:2, bst:'walk',  hr:4},
+        {n:'PEAK',   t:6, d:3, dg:1.25, to:1.35, sb:1.15, nz:1.10, pd:1.15, ml:true,  st:'dense',  swE:4, swD:4.0, swR:'peak', mv:3, bst:'drive', hr:2},
+        {n:'FADE',   t:3, d:1, dg:0.45, to:0.70, sb:0.90, nz:1.30, pd:0.80, ml:false, st:'tail',   swE:5, swD:5.0, swR:'tex',  mv:0, bst:'tail',  hr:8},
     ];
 
     // ── Melody voices ───────────────────────────────────────────────
@@ -83,6 +85,10 @@ window.__music = (function () {
         mel_minor: [0,2,3,5,7,9,11],
         altered:   [0,1,3,4,6,8,10],
         suspended: [0,2,5,7,9,10],
+        whole_tone:[0,2,4,6,8,10],
+        half_whole:[0,1,3,4,6,7,9,10],
+        lyd_dom:   [0,2,4,6,7,9,10],
+        harm_minor:[0,2,3,5,7,8,11],
     };
 
     // ── Chord vocabulary ────────────────────────────────────────────
@@ -100,10 +106,31 @@ window.__music = (function () {
         {r:42,iv:[0,3,7,11,14],   sc:'mel_minor'},
         {r:37,iv:[0,1,5,7,10],    sc:'phrygian' },
         {r:45,iv:[0,3,6,10,14],   sc:'locrian'  },
+        // Extended / altered colours — the harmony the voice leading has to
+        // move through, kept deliberately unresolved
+        {r:34,iv:[0,4,7,10,14,21],sc:'lyd_dom'   },  // 13 with a raised 11th
+        {r:38,iv:[0,5,10,15],     sc:'dorian'    },  // quartal stack
+        {r:46,iv:[0,4,10,13,18],  sc:'altered'   },  // 7alt (b9 #11)
+        {r:41,iv:[0,4,7,11,18],   sc:'lydian'    },  // maj7#11
+        {r:36,iv:[0,3,7,10,14,17],sc:'dorian'    },  // m11
+        {r:44,iv:[0,4,10,15],     sc:'half_whole'},  // 7#9
+        {r:39,iv:[0,3,6,9],       sc:'half_whole'},  // fully diminished
+        {r:37,iv:[0,4,8,11],      sc:'whole_tone'},  // maj7#5
     ];
+
+    // Progressions of mixed length — a 4-chord loop lands exactly once per
+    // 16-bar section, which reads as a hook rather than a journey. The 5-,
+    // 6-, 7- and 8-chord sets deliberately don't divide into the section
+    // length, so the harmony keeps turning over across section boundaries.
     var PROGS = [
-        [0,6,2,4],[0,3,2,5],[7,4,0,2],[1,5,3,6],[2,0,5,7],
-        [8,10,5,12],[9,0,11,7],[2,8,10,4],
+        [0,6,2,4],
+        [0,3,2,5],
+        [0,13,6,17,2,9],            // 6 — chromatic descent through extensions
+        [7,4,0,2,11],               // 5
+        [0,10,6,14,2,18,5,16],      // 8 — long arc, ends on maj7#5
+        [1,5,3,6,12,0,15],          // 7
+        [2,8,19,10,4,20],           // 6 — diminished pivot into whole-tone
+        [9,0,11,7,13,3,16,6],       // 8
     ];
 
     // ── Drum grooves — one per TMPLS entry (index must match) ──────
@@ -167,7 +194,8 @@ window.__music = (function () {
     var progPos  = 0;
     var curChord = CHORDS[curProg[0]];
     var curRoot  = curChord.r;
-    var padFreqs = [0, 0, 0];
+    var padFreqs  = [0, 0, 0];
+    var padVoices = [0, 0, 0];   // MIDI pitches behind padFreqs, for voice leading
 
     var stepInBar  = 0;
     var barCount   = 0;
@@ -416,12 +444,47 @@ window.__music = (function () {
         })();
     }
 
+    // ── Voice leading ────────────────────────────────────────────────
+    // Each pad voice moves to the nearest available tone of the new chord
+    // instead of every chord being slammed into root position. With this
+    // vocabulary — quartal stacks, 7alts, diminished — root position makes
+    // consecutive chords leap; nearest-tone motion keeps the inner voices
+    // stepping by a semitone or two and lets the extensions do the colouring.
+    var VOICE_LO = -8, VOICE_HI = 26;   // register the pad voices stay within
+
+    function voiceChordFrom(prevVoices, root, iv) {
+        var cands = [], o, j;
+        for (o = -12; o <= 24; o += 12) {
+            for (j = 0; j < iv.length; j++) {
+                var p = root + iv[j] + o;
+                if (p - root >= VOICE_LO && p - root <= VOICE_HI) cands.push(p);
+            }
+        }
+        var out = [], used = {};
+        for (var v = 0; v < 3; v++) {
+            var prev = prevVoices[v] || (root + iv[v % iv.length]);
+            var best = null, bestD = Infinity;
+            for (var c = 0; c < cands.length; c++) {
+                if (used[cands[c]]) continue;
+                var d = Math.abs(cands[c] - prev);
+                if (d < bestD) { bestD = d; best = cands[c]; }
+            }
+            if (best === null) best = root + iv[v % iv.length];
+            used[best] = 1;
+            out.push(best);
+        }
+        return out.sort(function (a, b) { return a - b; });
+    }
+
+    function voiceChord(root, iv) { return voiceChordFrom(padVoices, root, iv); }
+
     // ── Chord state ──────────────────────────────────────────────────
     function setChordState(def) {
         curChord = def;
         curRoot  = def.r + semis;
         var iv = def.iv;
-        for (var i = 0; i < 3; i++) padFreqs[i] = mtof(curRoot + iv[i % iv.length]);
+        padVoices = voiceChord(curRoot, iv);
+        for (var i = 0; i < 3; i++) padFreqs[i] = mtof(padVoices[i]);
         if (ctx) {
             var now = ctx.currentTime;
             subOsc.frequency.cancelScheduledValues(now);
@@ -435,10 +498,12 @@ window.__music = (function () {
 
     // Voicing for an arbitrary root — used by passing chords, which sound
     // without disturbing the sustained chord state.
+    // Voiced against the chord currently sounding, but without disturbing it —
+    // a passing chord left in root position leaps away from the voicing it's
+    // supposed to be slipping between.
     function chordFreqs(root, iv) {
-        var f = [];
-        for (var i = 0; i < 3; i++) f[i] = mtof(root + iv[i % iv.length]);
-        return f;
+        var v = voiceChordFrom(padVoices, root, iv);
+        return [mtof(v[0]), mtof(v[1]), mtof(v[2])];
     }
 
     // ── Pad stab ─────────────────────────────────────────────────────
@@ -590,7 +655,7 @@ window.__music = (function () {
                 }
             }
             // Walk into the next chord on the last sixteenth
-            if ((barCount + 1) % BARS_TO_CHORD === 0 && rnd() < 0.85) {
+            if ((barCount + 1) % barsToChord() === 0 && rnd() < 0.85) {
                 notes.push({p: steps - 1, k: 'approach', vel: 0.82, dur: 0.26});
             }
         }
@@ -1111,7 +1176,7 @@ window.__music = (function () {
                 }
             }
             // Passing chord on the final eighth before the chord turns over
-            if (stepInBar === curTmpl.n - 1 && (barCount + 1) % BARS_TO_CHORD === 0) {
+            if (stepInBar === curTmpl.n - 1 && (barCount + 1) % barsToChord() === 0) {
                 schedPassingChord(nextStepT + STEP * 0.5,
                                   CHORDS[curProg[(progPos + 1) % curProg.length]], rnd);
             }
@@ -1124,7 +1189,7 @@ window.__music = (function () {
                 barCount++;
                 secBar++;
 
-                if (barCount % BARS_TO_CHORD === 0) {
+                if (barCount % barsToChord() === 0) {
                     progPos = (progPos+1) % curProg.length;
                     setChordState(CHORDS[curProg[progPos]]);
                 }
