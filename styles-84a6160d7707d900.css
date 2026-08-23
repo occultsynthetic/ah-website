@@ -1026,6 +1026,9 @@ body.from-audio-sys #texture-field {
     align-items: baseline;
     font-size: clamp(13px, 1.45vw, 17px);
     margin-top: 0.3rem;
+    /* The input is only as wide as its text so the block cursor can sit
+       directly after it — the rest of the row still focuses on click. */
+    cursor: text;
 }
 
 .asys-prompt {
@@ -1042,10 +1045,22 @@ body.from-audio-sys #texture-field {
     font-family: 'IBMPlexMono', 'Courier New', 'Courier', monospace;
     font-size: inherit;
     letter-spacing: 0.05em;
-    caret-color: rgba(255,255,255,0.8);
+    /* Native caret hidden — the block cursor after the input is the caret */
+    caret-color: transparent;
     text-shadow: 0 0 6px rgba(255,255,255,0.55), 0 0 16px rgba(255,255,255,0.2);
-    width: 100%;
+    /* Width tracks the value length (set from JS in ch units) so the block
+       cursor lands right after the last character. */
+    width: 0;
+    min-width: 0;
+    flex-shrink: 0;
     text-transform: uppercase;
+}
+
+/* Block cursor now lives at the prompt, where the caret actually is */
+.asys-prompt-row .asys-cursor {
+    flex-shrink: 0;
+    color: #fff;
+    text-shadow: 0 0 6px rgba(255,255,255,0.55), 0 0 16px rgba(255,255,255,0.2);
 }
 
 /* ── SYNTH control panel (inside the AUDIO.SYS output pane) ─────── */

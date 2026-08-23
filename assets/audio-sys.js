@@ -4,7 +4,24 @@
     var el    = document.getElementById('audio-sys');
     var outEl = document.getElementById('audio-sys-out');
     var cmdEl = document.getElementById('audio-sys-cmd');
+    var rowEl = document.querySelector('.asys-prompt-row');
     var visible = false;
+
+    // The input is sized to its own text (monospace, so `ch` is exact) which
+    // keeps the block cursor sitting immediately after the last character
+    // instead of parked at the far end of a full-width field.
+    function syncCaret() {
+        cmdEl.style.width = cmdEl.value.length + 'ch';
+    }
+    cmdEl.addEventListener('input', syncCaret);
+    syncCaret();
+
+    // With a zero-width input when empty, the row itself has to take the click
+    if (rowEl) {
+        rowEl.addEventListener('mousedown', function (e) {
+            if (e.target !== cmdEl) { e.preventDefault(); cmdEl.focus(); }
+        });
+    }
 
     var BOOT = [
         '// AUDIO.SYS — SUBSYSTEM INTERFACE',
@@ -140,6 +157,7 @@
             e.preventDefault();
             var val = cmdEl.value;
             cmdEl.value = '';
+            syncCaret();
             runCmd(val);
         } else if (e.key === 'Escape') {
             // Escape peels back one layer at a time: visualiser, then the

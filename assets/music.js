@@ -29,9 +29,30 @@ window.__music = (function () {
         // 6: 4/4 reference       (3.0 s)
         {n: 8,p:[0,2,4,6],     b:[0,2,5,6],  vp:[1.0,.70,.90,.70],    vb:[1.0,.75,.80,.65]},
     ];
-    var TSEQ  = [0,1,0,3,2,0,4,6,0,5,0,2,3,1];
-    var TBARS = [3,2,3,2,3,2,4,2,3,2,3,3,2,2];
     var BWALK = [0,7,10,0,5,12,3,7];
+
+    // ── Song form ───────────────────────────────────────────────────
+    // 16-bar sections rather than a 2–4 bar template shuffle: the old
+    // rotation changed time signature every couple of bars, which read as
+    // restlessness instead of structure. One template per section means a
+    // groove gets long enough to settle before it turns over.
+    //
+    // drums: 0 none · 1 sparse (kick + skeleton hats) · 2 full · 3 busy
+    // gains multiply the SYNTH panel values rather than replacing them,
+    // so user settings survive the arrangement.
+    var SECTION_BARS = 16;
+    var SECTIONS = [
+        // name      tmpl drums drumG tone  sub  noise pad  bass mel   swarm  stab
+        {n:'INTRO',  t:4, d:0, dg:0.00, to:0.60, sb:1.00, nz:1.45, pd:0.72, bs:0.45, ml:false, sw:true,  st:'sparse'},
+        {n:'RISE',   t:0, d:1, dg:0.55, to:0.80, sb:1.00, nz:1.15, pd:0.90, bs:0.85, ml:true,  sw:false, st:'alt'   },
+        {n:'MAIN',   t:0, d:2, dg:1.00, to:1.00, sb:1.00, nz:0.90, pd:1.00, bs:1.00, ml:true,  sw:true,  st:'full'  },
+        {n:'LIFT',   t:6, d:3, dg:1.15, to:1.25, sb:1.10, nz:1.00, pd:1.10, bs:1.10, ml:true,  sw:false, st:'dense' },
+        // The drop: drums fall away right after the biggest build
+        {n:'VOID',   t:5, d:0, dg:0.00, to:0.55, sb:1.20, nz:1.60, pd:0.70, bs:0.40, ml:false, sw:true,  st:'sparse'},
+        {n:'RETURN', t:2, d:2, dg:1.00, to:1.05, sb:1.00, nz:0.85, pd:1.00, bs:1.00, ml:true,  sw:true,  st:'push'  },
+        {n:'PEAK',   t:6, d:3, dg:1.25, to:1.35, sb:1.15, nz:1.10, pd:1.15, bs:1.15, ml:true,  sw:true,  st:'dense' },
+        {n:'FADE',   t:3, d:1, dg:0.45, to:0.70, sb:0.90, nz:1.30, pd:0.80, bs:0.60, ml:false, sw:true,  st:'tail'  },
+    ];
 
     // ── Scales ─────────────────────────────────────────────────────
     var SCALES = {
@@ -131,11 +152,24 @@ window.__music = (function () {
 
     var stepInBar  = 0;
     var barCount   = 0;
-    var tmplPos    = 0;
-    var tmplBars   = 0;
-    var curTmpl    = TMPLS[TSEQ[0]];
-    var barsOnTmpl = TBARS[0];
     var bwalkI     = 0;
+
+    // Song-form state
+    var secIdx     = 0;
+    var secBar     = 0;
+    var curSec     = SECTIONS[0];
+    var curTmplIdx = SECTIONS[0].t;
+    var curTmpl    = TMPLS[curTmplIdx];
+
+    // Deterministic per-bar RNG — rhythms vary bar to bar but a given bar
+    // always resolves the same way, so pads and drums agree on the pattern.
+    function barRng(seed) {
+        var r = (seed * 2654435761) >>> 0;
+        return function () {
+            r = (r * 1664525 + 1013904223) >>> 0;
+            return r / 4294967296;
+        };
+    }
 
     var melNextT = 0;
     var melSeed  = 0x4a7c15;
@@ -213,23 +247,25 @@ window.__music = (function () {
 
     // Push one param onto its live AudioNode. Trigger-time params (levels
     // read when a note is scheduled) have no node to update and fall through.
+    // Section-scaled params fold in the current section's multiplier so a
+    // slider move doesn't undo the arrangement until the next boundary.
     function applyParam(id) {
         if (!ctx) return;
         var now = ctx.currentTime, v = P[id], T = 0.05;
         switch (id) {
             case 'masterVol':  master.gain.setTargetAtTime(v, now, T); break;
-            case 'masterTone': mFilt.frequency.setTargetAtTime(v, now, T); break;
+            case 'masterTone': mFilt.frequency.setTargetAtTime(v * curSec.to, now, T); break;
             case 'masterReso': mFilt.Q.setTargetAtTime(v, now, T); break;
             case 'reverb':     verbRtn.gain.setTargetAtTime(v, now, T); break;
             case 'swarmTone':  swarmFilt.frequency.setTargetAtTime(v, now, T); break;
             case 'swarmReso':  swarmFilt.Q.setTargetAtTime(v, now, T); break;
             case 'swarmEcho':  swarmDelayFB.gain.setTargetAtTime(v, now, T); break;
             case 'bassTone':   bassFilter.frequency.setTargetAtTime(v, now, T); break;
-            case 'subLevel':   subGain.gain.setTargetAtTime(v, now, T); break;
+            case 'subLevel':   subGain.gain.setTargetAtTime(v * curSec.sb, now, T); break;
             case 'melTone':    melFilt.frequency.setTargetAtTime(v, now, T); break;
-            case 'drumLevel':  drumBus.gain.setTargetAtTime(v, now, T); break;
+            case 'drumLevel':  drumBus.gain.setTargetAtTime(v * curSec.dg, now, T); break;
             case 'snareEcho':  snareDelayFB.gain.setTargetAtTime(v, now, T); break;
-            case 'noiseLevel': nGain.gain.setTargetAtTime(v, now, T); break;
+            case 'noiseLevel': nGain.gain.setTargetAtTime(v * curSec.nz, now, T); break;
         }
     }
 
@@ -376,25 +412,74 @@ window.__music = (function () {
         }
     }
 
+    // Voicing for an arbitrary root — used by passing chords, which sound
+    // without disturbing the sustained chord state.
+    function chordFreqs(root, iv) {
+        var f = [];
+        for (var i = 0; i < 3; i++) f[i] = mtof(root + iv[i % iv.length]);
+        return f;
+    }
+
     // ── Pad stab ─────────────────────────────────────────────────────
     var PTYP  = ['sawtooth','sawtooth','triangle'];
     var PDET  = [-7, +7, +2];
     var PBASE = [0.063, 0.063, 0.081];
-    function triggerPad(when, vel) {
+    function triggerPad(when, vel, freqs, decay) {
+        var f = freqs || padFreqs;
+        var d = decay || 1.5;
         for (var pi = 0; pi < 3; pi++) {
             (function (i) {
                 var osc = ctx.createOscillator();
                 osc.type = PTYP[i]; osc.detune.value = PDET[i] * P.padDetune;
-                osc.frequency.value = padFreqs[i];
+                osc.frequency.value = f[i];
                 var g = ctx.createGain();
                 g.gain.setValueAtTime(0.001, when);
                 g.gain.linearRampToValueAtTime(PBASE[i]*vel*P.padLevel, when+0.016);
-                g.gain.setTargetAtTime(0.001, when+0.016, 1.5);
+                g.gain.setTargetAtTime(0.001, when+0.016, d);
                 osc.connect(g); g.connect(mFilt);
                 osc.start(when); osc.stop(when+7.0);
                 osc.onended = function(){try{g.disconnect();osc.disconnect();}catch(e){}};
             })(pi);
         }
+    }
+
+    // ── Stab rhythm ──────────────────────────────────────────────────
+    // The template's `p` array is the bar's home rhythm; these reshape it so
+    // a 16-bar section doesn't repeat the identical stab pattern 16 times.
+    // Returns [[eighthPosition, velocityScale], ...].
+    function stabsForBar(tmpl, style, rnd) {
+        var p = tmpl.p, vp = tmpl.vp, n = tmpl.n, out = [], i;
+
+        function push(idx, scale) {
+            out.push([p[idx] % n, (vp[idx] !== undefined ? vp[idx] : 0.8) * scale]);
+        }
+
+        if (style === 'sparse') {
+            push(0, 0.85);
+            if (rnd() < 0.35 && p.length > 2) push(p.length - 1, 0.6);
+        } else if (style === 'alt') {
+            for (i = 0; i < p.length; i += 2) push(i, 0.95);
+            if (rnd() < 0.4 && p.length > 1) push(1, 0.55);
+        } else if (style === 'tail') {
+            for (i = Math.max(0, p.length - 2); i < p.length; i++) push(i, 0.8);
+        } else if (style === 'push') {
+            // Anticipations — everything but the downbeat lands an eighth early
+            push(0, 1.0);
+            for (i = 1; i < p.length; i++) {
+                out.push([(p[i] - 1 + n) % n, (vp[i] || 0.8) * 0.9]);
+            }
+        } else if (style === 'dense') {
+            for (i = 0; i < p.length; i++) push(i, 1.0);
+            for (i = 0; i < n; i++) {
+                if (p.indexOf(i) === -1 && rnd() < 0.22) out.push([i, 0.42]);
+            }
+        } else { // 'full'
+            for (i = 0; i < p.length; i++) push(i, 1.0);
+        }
+
+        // Drop a hit now and then so even the home rhythm breathes
+        if (out.length > 2 && rnd() < 0.22) out.splice(1 + Math.floor(rnd() * (out.length - 1)), 1);
+        return out;
     }
 
     // ── Bass note ────────────────────────────────────────────────────
@@ -476,16 +561,59 @@ window.__music = (function () {
         src.onended = function(){try{g.disconnect();nf.disconnect();src.disconnect();}catch(e){}};
     }
 
-    // Schedule all drum hits for one bar, anchored to barT.
-    // Uses the groove matching the CURRENT template so drums always align
-    // with the bar grid and respond to time-signature changes.
-    function schedDrumBar(barT) {
-        var grv = DGRV[TSEQ[tmplPos]];
-        var i;
-        for (i = 0; i < grv.k.length; i++) triggerKick(barT  + grv.k[i][0]*DSTEP, grv.k[i][1]);
-        for (i = 0; i < grv.s.length; i++) triggerSnare(barT + grv.s[i][0]*DSTEP, grv.s[i][1]);
-        for (i = 0; i < grv.h.length; i++) triggerHat(barT   + grv.h[i][0]*DSTEP, grv.h[i][1]);
-        for (i = 0; i < grv.g.length; i++) triggerGhost(barT + grv.g[i][0]*DSTEP, grv.g[i][1]);
+    // Schedule one bar of drums, anchored to barT, thinned to the section's
+    // density. The groove matches the CURRENT template so drums stay on the
+    // bar grid through time-signature changes.
+    //   1 = skeleton: downbeat kicks, backbeat, every other hat, no ghosts
+    //   2 = the groove as written
+    //   3 = busy: groove plus offbeat ghosts and doubled hats
+    function schedDrumBar(barT, density, rnd) {
+        if (density <= 0) return;
+        var grv = DGRV[curTmplIdx];
+        var i, steps = curTmpl.n * 2;
+
+        for (i = 0; i < grv.k.length; i++) {
+            if (density === 1 && i > 1) continue;
+            triggerKick(barT + grv.k[i][0]*DSTEP, grv.k[i][1]);
+        }
+        for (i = 0; i < grv.s.length; i++) {
+            triggerSnare(barT + grv.s[i][0]*DSTEP, grv.s[i][1]);
+        }
+        for (i = 0; i < grv.h.length; i++) {
+            if (density === 1 && (i & 1)) continue;
+            triggerHat(barT + grv.h[i][0]*DSTEP, grv.h[i][1] * (density === 1 ? 0.8 : 1));
+        }
+        if (density >= 2) {
+            for (i = 0; i < grv.g.length; i++) triggerGhost(barT + grv.g[i][0]*DSTEP, grv.g[i][1]);
+        }
+        if (density >= 3) {
+            // Offbeat sixteenths between the written hats
+            for (i = 1; i < steps; i += 2) {
+                if (rnd() < 0.45) triggerGhost(barT + i*DSTEP, 0.13 + rnd()*0.07);
+            }
+        }
+    }
+
+    // Fill across the tail of a bar, crescendoing into the downbeat that
+    // follows. Sections used to cut straight from one groove to the next with
+    // nothing signalling the change — this is what leads the ear over.
+    function schedDrumFill(barT, strength, rnd) {
+        var steps = curTmpl.n * 2;
+        var len   = Math.min(steps, 6 + Math.floor(rnd() * 5));   // last 6–10 sixteenths
+        var start = steps - len;
+
+        for (var i = start; i < steps; i++) {
+            var t    = barT + i * DSTEP;
+            var prog = (i - start) / len;                          // 0 → 1 across the fill
+            var vel  = (0.30 + prog * 0.62) * strength;
+
+            // Density ramps up as the fill approaches the downbeat
+            if (rnd() < 0.45 + prog * 0.45) triggerSnare(t, vel * 0.85);
+            if (rnd() < 0.35 + prog * 0.40) triggerGhost(t + DSTEP * 0.5, vel * 0.6);
+            if (prog > 0.55 && rnd() < 0.30) triggerKick(t, vel * 0.7);
+        }
+        // Land it
+        triggerKick(barT + steps * DSTEP, 0.95 * strength);
     }
 
     // ── Swarmatron — structural modes (bloom/ascent/exhale/drift), pad layer +
@@ -766,32 +894,75 @@ window.__music = (function () {
         }
     }
 
+    // Move the mix to a new section. Everything ramps over roughly a bar so
+    // sections arrive rather than switch.
+    function applySection(sec, when) {
+        if (!ctx) return;
+        var T = curTmpl.n * STEP * 0.45;
+        drumBus.gain.setTargetAtTime(P.drumLevel  * sec.dg, when, T);
+        mFilt.frequency.setTargetAtTime(P.masterTone * sec.to, when, T);
+        nGain.gain.setTargetAtTime(P.noiseLevel   * sec.nz, when, T);
+        subGain.gain.setTargetAtTime(P.subLevel   * sec.sb, when, T);
+    }
+
+    // Chord a semitone above or below the next one, sounded on the last
+    // eighth of the bar before a change — a leading tone into the new chord.
+    function schedPassingChord(when, nextDef, rnd) {
+        var dir  = rnd() < 0.5 ? 1 : -1;
+        var root = nextDef.r + semis + dir;
+        triggerPad(when, 0.42, chordFreqs(root, nextDef.iv), 0.35);
+    }
+
     // ── Lookahead scheduler ───────────────────────────────────────────
     function tick() {
         while (nextStepT < ctx.currentTime + AHEAD) {
+            var barsToChord = 4;                       // chord turns over every 4 bars
+            var lastBarOfSection = (secBar === SECTION_BARS - 1);
+            var rnd = barRng(barCount + 1);
+            var stabs = stabsForBar(curTmpl, curSec.st, rnd);
+
             // Bar start: drums, glitch events, swarmatron, melody
             if (stepInBar === 0) {
                 if (drumActive) {
-                    schedDrumBar(nextStepT);
+                    if (lastBarOfSection && curSec.d > 0) {
+                        // Fill out of the section instead of cutting dead
+                        schedDrumBar(nextStepT, Math.max(1, curSec.d - 1), rnd);
+                        schedDrumFill(nextStepT, 0.75 + (SECTIONS[(secIdx+1) % SECTIONS.length].d >= 2 ? 0.25 : 0), rnd);
+                    } else {
+                        schedDrumBar(nextStepT, curSec.d, rnd);
+                    }
+
                     // Year Zero glitch burst — ~22% per bar, offset slightly into the bar
                     if (Math.random() < 0.22) {
                         triggerGlitch(nextStepT + Math.random() * STEP * 1.5);
                     }
-                    // Swarmatron — fires every 5-9 bars
+                    // Swarmatron — only where the section calls for it
                     if (--swarmCountdown <= 0) {
-                        var barDur = curTmpl.n * STEP;
-                        triggerSwarm(nextStepT, barDur * (2 + Math.floor(Math.random() * 3)));
+                        if (curSec.sw) {
+                            var barDur = curTmpl.n * STEP;
+                            triggerSwarm(nextStepT, barDur * (2 + Math.floor(Math.random() * 3)));
+                        }
                         swarmCountdown = Math.max(1, Math.round(P.swarmRate)) +
                                          Math.floor(Math.random() * 2);
                     }
                 }
-                if (nextStepT >= melNextT) schedMelPhrase(nextStepT);
+                if (curSec.ml && nextStepT >= melNextT) schedMelPhrase(nextStepT);
             }
 
-            var pi = inArr(curTmpl.p, stepInBar);
+            // Pads follow the section's stab style; bass thins in quiet sections
+            for (var si = 0; si < stabs.length; si++) {
+                if (stabs[si][0] === stepInBar) {
+                    triggerPad(nextStepT, stabs[si][1] * curSec.pd);
+                }
+            }
             var bi = inArr(curTmpl.b, stepInBar);
-            if (pi !== -1) triggerPad(nextStepT, curTmpl.vp[pi]);
-            if (bi !== -1) triggerBass(nextStepT);
+            if (bi !== -1 && rnd() < curSec.bs) triggerBass(nextStepT);
+
+            // Passing chord on the final eighth before the chord turns over
+            if (stepInBar === curTmpl.n - 1 && (barCount + 1) % barsToChord === 0) {
+                schedPassingChord(nextStepT + STEP * 0.5,
+                                  CHORDS[curProg[(progPos + 1) % curProg.length]], rnd);
+            }
 
             nextStepT += STEP;
             stepInBar++;
@@ -799,18 +970,22 @@ window.__music = (function () {
             if (stepInBar >= curTmpl.n) {
                 stepInBar = 0;
                 barCount++;
-                tmplBars++;
+                secBar++;
 
-                if (barCount % 2 === 0) {
+                if (barCount % barsToChord === 0) {
                     progPos = (progPos+1) % curProg.length;
                     setChordState(CHORDS[curProg[progPos]]);
                 }
 
-                if (tmplBars >= barsOnTmpl) {
-                    tmplBars = 0;
-                    tmplPos  = (tmplPos+1) % TSEQ.length;
-                    curTmpl  = TMPLS[TSEQ[tmplPos]];
-                    barsOnTmpl = TBARS[tmplPos];
+                // Section turnover — one template per section, so the metre
+                // holds long enough to establish itself
+                if (secBar >= SECTION_BARS) {
+                    secBar     = 0;
+                    secIdx     = (secIdx + 1) % SECTIONS.length;
+                    curSec     = SECTIONS[secIdx];
+                    curTmplIdx = curSec.t;
+                    curTmpl    = TMPLS[curTmplIdx];
+                    applySection(curSec, nextStepT);
                 }
             }
         }
@@ -830,13 +1005,14 @@ window.__music = (function () {
         buildGraph();
         var now = ctx.currentTime;
         applyInitParams();
-        master.gain.setTargetAtTime(P.masterVol,  now,      2.0);
-        subGain.gain.setTargetAtTime(P.subLevel,  now+1.5,  3.5);
-        nGain.gain.setTargetAtTime(P.noiseLevel,  now+4.0,  2.5);
+        master.gain.setTargetAtTime(P.masterVol, now, 2.0);
+        // Section 0 (INTRO) owns the opening mix — drumless, dark, sub-heavy.
+        subGain.gain.setTargetAtTime(P.subLevel  * curSec.sb, now+1.5, 3.5);
+        nGain.gain.setTargetAtTime(P.noiseLevel  * curSec.nz, now+4.0, 2.5);
+        drumBus.gain.setTargetAtTime(P.drumLevel * curSec.dg, now,     1.0);
         setChordState(CHORDS[curProg[0]]);
         nextStepT = now + 0.6;
-        // Drums fade in after pads establish, then gate open so scheduling begins
-        drumBus.gain.setTargetAtTime(P.drumLevel, now + 2.5, 3.5);
+        // Gate scheduling open once the pads have established
         setTimeout(function() { drumActive = true; }, 2500);
         tick();
     }
