@@ -1,6 +1,34 @@
+/* ── Terminal Mono ────────────────────────────────────────────
+   One family, four registered weights. Light carries reading copy,
+   Regular is the interface default. Medium and Bold are registered so
+   emphasis in rendered markdown resolves to a real cut instead of a
+   browser-synthesised fake bold off Regular. */
 @font-face {
-    font-family: 'IBMPlexMono';
-    src: url('assets/IbmPlexMono-7L4D.otf') format('opentype');
+    font-family: 'TerminalMono';
+    src: url('assets/fonts/TRTTerminalMono-Light.otf') format('opentype');
+    font-weight: 300;
+    font-style: normal;
+    font-display: swap;
+}
+@font-face {
+    font-family: 'TerminalMono';
+    src: url('assets/fonts/TRTTerminalMono-Regular.otf') format('opentype');
+    font-weight: 400;
+    font-style: normal;
+    font-display: swap;
+}
+@font-face {
+    font-family: 'TerminalMono';
+    src: url('assets/fonts/TRTTerminalMono-Medium.otf') format('opentype');
+    font-weight: 500;
+    font-style: normal;
+    font-display: swap;
+}
+@font-face {
+    font-family: 'TerminalMono';
+    src: url('assets/fonts/TRTTerminalMono-Bold.otf') format('opentype');
+    font-weight: 700;
+    font-style: normal;
     font-display: swap;
 }
 
@@ -22,6 +50,28 @@
     margin: 0;
     padding: 0;
     box-sizing: border-box;
+}
+
+/* ── weight policy ────────────────────────────────────────────
+   Regular is the interface default; anything that's read as prose
+   rather than scanned as UI drops to Light. */
+body { font-weight: 400; }
+
+.splash-body,
+.panel-body,
+#notes-body,
+.mf-body {
+    font-weight: 300;
+}
+
+/* Structure inside Light copy steps back up — headings are set to
+   Medium at the markdown typography rules further down. */
+#notes-body code,
+#notes-body pre,
+#notes-tree,
+.notes-empty,
+.notes-loading {
+    font-weight: 400;
 }
 
 /* ── texture field ────────────────────────────────────────────
@@ -100,7 +150,7 @@ html, body {
     position: fixed;
     pointer-events: none;
     z-index: 40;
-    font-family: 'IBMPlexMono', 'Courier New', 'Courier', monospace;
+    font-family: 'TerminalMono', 'Courier New', 'Courier', monospace;
     font-size: clamp(14px, 1.65vw, 20px);
     letter-spacing: 0.08em;
     line-height: 1.9;
@@ -117,7 +167,7 @@ html, body {
     top: clamp(1rem, 3vw, 2rem);
     right: clamp(1rem, 3vw, 2rem);
     z-index: 10;
-    font-family: 'IBMPlexMono', 'Courier New', 'Courier', monospace;
+    font-family: 'TerminalMono', 'Courier New', 'Courier', monospace;
     font-size: clamp(14px, 1.65vw, 20px);
     line-height: 1.9;
     color: #fff;
@@ -226,7 +276,7 @@ html, body {
     top: clamp(1rem, 3vw, 2rem);
     left: clamp(1rem, 3vw, 2rem);
     z-index: 10;
-    font-family: 'IBMPlexMono', 'Courier New', 'Courier', monospace;
+    font-family: 'TerminalMono', 'Courier New', 'Courier', monospace;
     font-size: clamp(9px, 0.78vw, 11px);
     line-height: 1.95;
     letter-spacing: 0.15em;
@@ -255,7 +305,7 @@ html, body {
     z-index: 20;
     width: min(46rem, 84vw);
     text-align: center;
-    font-family: 'IBMPlexMono', 'Courier New', 'Courier', monospace;
+    font-family: 'TerminalMono', 'Courier New', 'Courier', monospace;
     color: #fff;
     pointer-events: none;
     user-select: none;
@@ -368,7 +418,7 @@ body:has(#notes-panel:not(.notes-hidden)) #manifesto {
         right bottom, right bottom;
     border: 1px solid rgba(var(--bone), 0.045);
     backdrop-filter: blur(6px);
-    font-family: 'IBMPlexMono', 'Courier New', 'Courier', monospace;
+    font-family: 'TerminalMono', 'Courier New', 'Courier', monospace;
     color: #ccc;
     overflow: hidden;
 }
@@ -612,12 +662,13 @@ body:has(#notes-panel:not(.notes-hidden)) #manifesto {
 /* ── markdown typography ── */
 #notes-body h1, #notes-body h2, #notes-body h3,
 #notes-body h4, #notes-body h5, #notes-body h6 {
-    font-family: 'IBMPlexMono', 'Courier New', monospace;
+    font-family: 'TerminalMono', 'Courier New', monospace;
     color: #fff;
     letter-spacing: 0.1em;
     margin: 2em 0 0.6em;
     line-height: 1.35;
-    font-weight: normal;
+    /* Medium, so headings step up out of the Light body copy */
+    font-weight: 500;
 }
 #notes-body h1:first-child { margin-top: 0; }
 #notes-body h1 { font-size: 1.25em; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 0.5em; }
@@ -797,7 +848,7 @@ body.egg-genesis #notes-panel {
     display: flex;
     align-items: center;
     justify-content: center;
-    font-family: 'IBMPlexMono', 'Courier New', 'Courier', monospace;
+    font-family: 'TerminalMono', 'Courier New', 'Courier', monospace;
     color: #fff;
     text-shadow: 0 0 6px rgba(255,255,255,0.65), 0 0 18px rgba(255,255,255,0.25), 0 0 40px rgba(255,255,255,0.08);
     transition: opacity 0.5s ease;
@@ -944,7 +995,7 @@ body.from-audio-sys #texture-field {
     background: #000;
     align-items: center;
     justify-content: center;
-    font-family: 'IBMPlexMono', 'Courier New', 'Courier', monospace;
+    font-family: 'TerminalMono', 'Courier New', 'Courier', monospace;
     color: #fff;
     text-shadow: 0 0 6px rgba(255,255,255,0.65), 0 0 18px rgba(255,255,255,0.25), 0 0 40px rgba(255,255,255,0.08);
 }
@@ -1042,7 +1093,7 @@ body.from-audio-sys #texture-field {
     border: none;
     outline: none;
     color: #fff;
-    font-family: 'IBMPlexMono', 'Courier New', 'Courier', monospace;
+    font-family: 'TerminalMono', 'Courier New', 'Courier', monospace;
     font-size: inherit;
     letter-spacing: 0.05em;
     /* Native caret hidden — the block cursor after the input is the caret */
