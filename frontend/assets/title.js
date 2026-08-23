@@ -134,8 +134,12 @@
         'color:transparent;caret-color:transparent;font-size:16px;pointer-events:none;';
     document.body.appendChild(shadowInput);
 
+    // '.' must be allowed: this runs over the whole value, not just the
+    // characters being typed, so excluding it would strip the dot out of
+    // MEGASTRUCTURE.SYS on the first keystroke — and the egg matcher keys
+    // off the .SYS suffix.
     function sanitize(v) {
-        return v.toUpperCase().replace(/[^A-Z0-9_\-]/g, '');
+        return v.toUpperCase().replace(/[^A-Z0-9_\-.]/g, '');
     }
 
     shadowInput.addEventListener('input', function () {
