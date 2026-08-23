@@ -375,7 +375,7 @@ impl GlitchLayer {
     // ── system log text (Option E) ────────────────────────────────────
 
     fn draw_system_log(&self, q: f64, rng: &mut Lcg) {
-        self.ctx.set_font("9px 'IBMPlexMono','Courier New',monospace");
+        self.ctx.set_font("9px 'TerminalMono','Courier New',monospace");
 
         let n_lines = ((q * 11.0) as u32 + 2).min(16);
         // Three loose columns across the screen
