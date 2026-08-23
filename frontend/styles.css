@@ -299,19 +299,16 @@ html, body {
    3D canvas and the menu fully interactive underneath. */
 #manifesto {
     position: fixed;
-    top: clamp(4rem, 10vh, 8.5rem);
-    /* Centred within the space beside the nav rather than within the whole
-       viewport. Reserving room on both sides squeezed the column so hard at
-       mid widths that the headline wrapped; reserving only on the right —
-       where the nav actually is — keeps a wide, readable measure. */
-    left: clamp(1rem, 3vw, 2rem);
-    right: 20rem;
+    /* At this size the headline needs the full measure, so it can no longer
+       share the top band with the nav — it sits below it instead. The rem
+       floor guarantees clearance since the nav's height follows its font
+       size, not the viewport height. */
+    top: max(20rem, 22vh);
+    left: 0;
+    right: 0;
     margin-inline: auto;
     z-index: 20;
-    /* Must shrink explicitly rather than lean on `right`: with left, right
-       and width all set the box is over-constrained, `right` is dropped,
-       and the column overflows into the nav instead of narrowing. */
-    width: min(48rem, calc(100vw - 22rem));
+    width: 92vw;
     font-family: 'TerminalMono', 'Courier New', 'Courier', monospace;
     color: #fff;
     pointer-events: none;
@@ -331,8 +328,10 @@ html, body {
 .mf-lead {
     text-align: left;
     font-weight: 700;
-    font-size: clamp(20px, 4vw, 54px);
-    line-height: 1.1;
+    /* Sized to fill the measure. The vh term keeps the block from running
+       off the bottom of short windows. */
+    font-size: clamp(28px, min(6.6vw, 10.5vh), 112px);
+    line-height: 1.08;
     /* The two-line break is the composition — never let it reflow */
     white-space: nowrap;
     letter-spacing: 0.015em;
@@ -342,39 +341,17 @@ html, body {
 
 /* The one focal rule — solid at the centre, dissolving at both ends,
    with tick ends. Non-monotone without being visibly dashed. */
-/* Ranged right, where it leads into the counterpoint block */
-.mf-rule {
-    position: relative;
-    width: clamp(3rem, 6vw, 4.75rem);
-    height: 1px;
-    margin: clamp(1.5rem, 3.2vh, 2.6rem) 0 clamp(1.5rem, 3.2vh, 2.6rem) auto;
-    background: linear-gradient(90deg,
-        transparent 0%, rgba(var(--bone), 0.12) 14%, rgba(var(--bone), 0.46) 42%,
-        rgba(var(--bone), 0.46) 58%, rgba(var(--bone), 0.12) 86%, transparent 100%);
-}
-
-.mf-rule::before,
-.mf-rule::after {
-    content: '';
-    position: absolute;
-    top: -2px;
-    width: 1px;
-    height: 5px;
-    background: rgba(var(--bone), 0.3);
-}
-
-.mf-rule::before { left: 0; }
-.mf-rule::after  { right: 0; }
-
 /* The turn: ranged right, still display-sized but well under the lead,
    and Light against the lead's Bold. The negative margin cancels the
-   trailing letter-space so the ragged-left block sits flush right. */
+   trailing letter-space so the ragged-left block sits flush right.
+   Its top margin carries the separation the rule used to provide. */
 .mf-body {
     text-align: right;
-    font-size: clamp(12px, 2.05vw, 27px);
-    line-height: 1.5;
+    font-size: clamp(16px, min(3.3vw, 5.2vh), 56px);
+    line-height: 1.45;
     letter-spacing: 0.085em;
     margin-right: -0.085em;
+    margin-top: clamp(1.4rem, 4vh, 3.2rem);
     color: rgba(255, 255, 255, 0.55);
     text-shadow: 0 0 10px rgba(255,255,255,0.22);
 }
@@ -387,21 +364,19 @@ body:has(#notes-panel:not(.notes-hidden)) #manifesto {
     transform: translateY(-0.6rem);
 }
 
-/* Below ~900px reserving side room would squeeze the column too far, so
-   the statement drops beneath the nav and takes the full width instead. */
 @media (max-width: 900px) {
-    /* The nav's height is driven by its font size, not by viewport height, so
-       a pure vh offset collides on short screens — the rem floor guarantees
-       clearance beneath it at any height. */
     #manifesto {
-        top: max(19rem, 30vh);
-        /* Below the nav now, so it can use the full width again */
-        left: 0;
-        right: 0;
-        width: 88vw;
+        top: max(19rem, 28vh);
+        width: 94vw;
     }
-    .mf-lead { font-size: clamp(17px, 6.3vw, 30px); letter-spacing: 0.01em; }
-    .mf-body { font-size: clamp(11px, 3.8vw, 18px); letter-spacing: 0.07em; margin-right: -0.07em; }
+    /* The headline already fills the width here, so it can only grow as far
+       as the viewport allows before the two-line break would break. */
+    .mf-lead { font-size: clamp(15px, 6.8vw, 40px); letter-spacing: 0.01em; }
+    .mf-body {
+        font-size: clamp(11px, 4.1vw, 24px);
+        letter-spacing: 0.07em;
+        margin-right: -0.07em;
+    }
 }
 
 /* ── shared panel base ────────────────────────────────────── */
