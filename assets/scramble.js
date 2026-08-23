@@ -158,6 +158,24 @@
         });
     })();
 
+    // ── Spec readout: keep SECTOR in step with the nav ───────────────
+    // Piggybacks on the same buttons the Rust click handler listens to;
+    // both fire, so this needs no change on the wasm side.
+    (function () {
+        var out = document.getElementById('spec-sector');
+        if (!out) return;
+        for (var s = 0; s < 4; s++) {
+            (function (idx) {
+                var btn = document.getElementById('sector-' + idx);
+                if (!btn) return;
+                btn.addEventListener('click', function () {
+                    out.textContent = '0' + (idx + 1);
+                    scrambleEl(out, 0, { mode: 'rand', minDur: 260, maxDur: 380 });
+                });
+            })(s);
+        }
+    })();
+
     // ── Splash screen ────────────────────────────────────────────────
     var splashEl    = document.getElementById('splash');
     var splashEnter = document.getElementById('splash-enter');

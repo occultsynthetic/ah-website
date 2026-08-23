@@ -4,13 +4,24 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>megastructure</title>
-    <link rel="stylesheet" href="/ah-website/styles-f2e35e3b01fd254d.css" integrity="sha384-vYwTKTNHiJHQYVyH109nPqS/Zl/MHMSApjwCekjjMAlQFaJzoXzpbLlCWA+uIpo6"/>
+    <link rel="stylesheet" href="/ah-website/styles-b8c6164b4531c1df.css" integrity="sha384-PsDkB6mm+etthQGcDi+AdE9GV9Selpi7kmwNjzsf6X0RTY2L528RgUk5TcRKfL4Q"/>
     
 <link rel="modulepreload" href="/ah-website/frontend-ec449f47161f8596.js" crossorigin="anonymous" integrity="sha384-k5cB2Rcm42+658Fc7a/1o7pZx9vkIse9mRZxM0fyuFSc5fDEmWGBXtafysMaDzAb"><link rel="preload" href="/ah-website/frontend-ec449f47161f8596_bg.wasm" crossorigin="anonymous" integrity="sha384-YCxcf5K60CMfvBwMyC9Ips5JMZaqbyShVJrCljJhSDrKIW8IAbBUi9O4g4oLh2dN" as="fetch" type="application/wasm"></head>
 <body>
 
     <!-- ── CRT scan-line overlay (pointer-events: none, above everything) ── -->
     <div id="crt-overlay" aria-hidden="true"></div>
+
+    <!-- ── Procedural texture field (contours + dust), below the UI ── -->
+    <div id="texture-field" aria-hidden="true"></div>
+
+    <!-- ── Spec readout — balances the nav across the top of the frame ── -->
+    <aside id="sys-spec" aria-hidden="true">
+        <div class="spec-row"><span class="spec-k">SECTOR</span><span class="spec-c">:</span><span class="spec-v" id="spec-sector">01</span></div>
+        <div class="spec-row"><span class="spec-k">GRID</span><span class="spec-c">:</span><span class="spec-v">9 × 9</span></div>
+        <div class="spec-row"><span class="spec-k">RENDER</span><span class="spec-c">:</span><span class="spec-v">WEBGL2</span></div>
+        <div class="spec-row"><span class="spec-k">SIGNAL</span><span class="spec-c">:</span><span class="spec-v">NOMINAL</span></div>
+    </aside>
 
     <!-- ── Splash / photosensitivity disclaimer ── -->
     <div id="splash">
@@ -117,7 +128,7 @@
         <div class="menu-header" id="sys-title-nav">
             <span id="sys-nav-before">MEGASTRUCTURE.SYS</span><span class="cursor sys-cursor">█</span><span id="sys-nav-after"></span>
         </div>
-        <div class="menu-rule"></div>
+        <div class="menu-rule rule-broken rule-ticked"></div>
         <button id="sector-0" class="menu-item active">
             <span class="prompt">&gt;&nbsp;</span>SECTOR_01&nbsp;/&nbsp;ENTRY
         </button>
@@ -130,7 +141,7 @@
         <button id="sector-3" class="menu-item">
             <span class="prompt">&gt;&nbsp;</span>SECTOR_04&nbsp;/&nbsp;DEPTHS
         </button>
-        <div class="menu-rule"></div>
+        <div class="menu-rule rule-broken rule-ticked"></div>
         <div class="menu-status">AUDIO&nbsp;STATUS&nbsp;<span id="audio-status" class="online">ONLINE</span></div>
         <div id="sys-egg-msg"></div>
     </nav>
@@ -153,7 +164,7 @@
          or CDN cache can silently serve a stale copy after a redeploy.
          Bump this query string whenever any of these files change. -->
     <script src="assets/music.js?v=3"></script>
-    <script src="assets/scramble.js?v=6"></script>
+    <script src="assets/scramble.js?v=7"></script>
     <script src="assets/title.js?v=3"></script>
     <script src="assets/synth-ui.js?v=1"></script>
     <script src="assets/audio-sys.js?v=3"></script>
