@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>megastructure</title>
-    <link rel="stylesheet" href="/ah-website/styles-8fbf58c4d684db20.css" integrity="sha384-oeDHeZw3bFRL8S9qRQrXt31NTNU3logYV8Z62nXNKqHLdyk3E2yeFYohaMjQCPG2"/>
+    <link rel="stylesheet" href="/ah-website/styles-f2e35e3b01fd254d.css" integrity="sha384-vYwTKTNHiJHQYVyH109nPqS/Zl/MHMSApjwCekjjMAlQFaJzoXzpbLlCWA+uIpo6"/>
     
 <link rel="modulepreload" href="/ah-website/frontend-ec449f47161f8596.js" crossorigin="anonymous" integrity="sha384-k5cB2Rcm42+658Fc7a/1o7pZx9vkIse9mRZxM0fyuFSc5fDEmWGBXtafysMaDzAb"><link rel="preload" href="/ah-website/frontend-ec449f47161f8596_bg.wasm" crossorigin="anonymous" integrity="sha384-YCxcf5K60CMfvBwMyC9Ips5JMZaqbyShVJrCljJhSDrKIW8IAbBUi9O4g4oLh2dN" as="fetch" type="application/wasm"></head>
 <body>
@@ -42,6 +42,20 @@
     <canvas id="canvas"></canvas>
     <canvas id="glitch-canvas"></canvas>
     <div id="hover-ghost" aria-hidden="true"></div>
+
+    <!-- ── Landing statement (upper centre; recedes once a panel opens) ── -->
+    <section id="manifesto" aria-label="statement">
+        <p class="mf-lead">
+            <span class="mf-line">WE LIVE IN A TIME WHEN</span>
+            <span class="mf-line">INFORMATION IS SO CHEAP,</span>
+        </p>
+        <div class="mf-rule" aria-hidden="true"></div>
+        <p class="mf-body">
+            <span class="mf-line">BUT THE SYSTEM IS DESIGNED</span>
+            <span class="mf-line">TO OBFUSCATE AND DISORIENTATE US</span>
+            <span class="mf-line">FROM OUR DESIRE TO HARNESS IT.</span>
+        </p>
+    </section>
 
     <!-- ── content panels (sectors 0–2) ── -->
     <div id="panel-0" class="content-panel panel-hidden">
@@ -139,7 +153,7 @@
          or CDN cache can silently serve a stale copy after a redeploy.
          Bump this query string whenever any of these files change. -->
     <script src="assets/music.js?v=3"></script>
-    <script src="assets/scramble.js?v=5"></script>
+    <script src="assets/scramble.js?v=6"></script>
     <script src="assets/title.js?v=3"></script>
     <script src="assets/synth-ui.js?v=1"></script>
     <script src="assets/audio-sys.js?v=3"></script>
