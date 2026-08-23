@@ -41,17 +41,35 @@ window.__music = (function () {
     // gains multiply the SYNTH panel values rather than replacing them,
     // so user settings survive the arrangement.
     var SECTION_BARS = 16;
+    // swE = bars between swarm entries · swD = swarm length in bars
+    // swR = swarm role: 'tex' textural bed · 'lead' melodic · 'peak' both, loud
+    // mv  = melody voice index into MEL_VOICES
     var SECTIONS = [
-        // name      tmpl drums drumG tone  sub  noise pad  bass mel   swarm  stab
-        {n:'INTRO',  t:4, d:0, dg:0.00, to:0.60, sb:1.00, nz:1.45, pd:0.72, bs:0.45, ml:false, sw:true,  st:'sparse'},
-        {n:'RISE',   t:0, d:1, dg:0.55, to:0.80, sb:1.00, nz:1.15, pd:0.90, bs:0.85, ml:true,  sw:false, st:'alt'   },
-        {n:'MAIN',   t:0, d:2, dg:1.00, to:1.00, sb:1.00, nz:0.90, pd:1.00, bs:1.00, ml:true,  sw:true,  st:'full'  },
-        {n:'LIFT',   t:6, d:3, dg:1.15, to:1.25, sb:1.10, nz:1.00, pd:1.10, bs:1.10, ml:true,  sw:false, st:'dense' },
-        // The drop: drums fall away right after the biggest build
-        {n:'VOID',   t:5, d:0, dg:0.00, to:0.55, sb:1.20, nz:1.60, pd:0.70, bs:0.40, ml:false, sw:true,  st:'sparse'},
-        {n:'RETURN', t:2, d:2, dg:1.00, to:1.05, sb:1.00, nz:0.85, pd:1.00, bs:1.00, ml:true,  sw:true,  st:'push'  },
-        {n:'PEAK',   t:6, d:3, dg:1.25, to:1.35, sb:1.15, nz:1.10, pd:1.15, bs:1.15, ml:true,  sw:true,  st:'dense' },
-        {n:'FADE',   t:3, d:1, dg:0.45, to:0.70, sb:0.90, nz:1.30, pd:0.80, bs:0.60, ml:false, sw:true,  st:'tail'  },
+        // name      tmpl drums drumG tone  sub  noise pad  bass mel  stab      swarm
+        {n:'INTRO',  t:4, d:0, dg:0.00, to:0.60, sb:1.00, nz:1.45, pd:0.72, bs:0.45, ml:false, st:'sparse', swE:4, swD:4.5, swR:'tex',  mv:0},
+        {n:'RISE',   t:0, d:1, dg:0.55, to:0.80, sb:1.00, nz:1.15, pd:0.90, bs:0.85, ml:true,  st:'alt',    swE:4, swD:3.0, swR:'lead', mv:0},
+        {n:'MAIN',   t:0, d:2, dg:1.00, to:1.00, sb:1.00, nz:0.90, pd:1.00, bs:1.00, ml:true,  st:'full',   swE:4, swD:3.0, swR:'lead', mv:1},
+        {n:'LIFT',   t:6, d:3, dg:1.15, to:1.25, sb:1.10, nz:1.00, pd:1.10, bs:1.10, ml:true,  st:'dense',  swE:4, swD:4.0, swR:'peak', mv:3},
+        // The drop: drums fall away right after the biggest build and the
+        // swarm carries the section on its own
+        {n:'VOID',   t:5, d:0, dg:0.00, to:0.55, sb:1.20, nz:1.60, pd:0.70, bs:0.40, ml:false, st:'sparse', swE:4, swD:5.0, swR:'tex',  mv:2},
+        {n:'RETURN', t:2, d:2, dg:1.00, to:1.05, sb:1.00, nz:0.85, pd:1.00, bs:1.00, ml:true,  st:'push',   swE:4, swD:3.0, swR:'lead', mv:2},
+        {n:'PEAK',   t:6, d:3, dg:1.25, to:1.35, sb:1.15, nz:1.10, pd:1.15, bs:1.15, ml:true,  st:'dense',  swE:4, swD:4.0, swR:'peak', mv:3},
+        {n:'FADE',   t:3, d:1, dg:0.45, to:0.70, sb:0.90, nz:1.30, pd:0.80, bs:0.60, ml:false, st:'tail',   swE:5, swD:5.0, swR:'tex',  mv:0},
+    ];
+
+    // ── Melody voices ───────────────────────────────────────────────
+    // The lead was a single triangle throughout. Each section now picks a
+    // voice; `pair` adds a second detuned/transposed oscillator, which is
+    // what separates BELL and BLADE from the simpler two.
+    var MEL_VOICES = [
+        {name:'GLASS', type:'triangle', oct:0,  det:0,  atk:0.060, rel:0.50, gain:1.00, pair:null},
+        {name:'REED',  type:'square',   oct:0,  det:-6, atk:0.030, rel:0.34, gain:0.60,
+         pair:{type:'triangle', oct:0,  det:+7, gain:0.55}},
+        {name:'BELL',  type:'sine',     oct:12, det:0,  atk:0.004, rel:0.95, gain:0.90,
+         pair:{type:'sine',     oct:19, det:+4, gain:0.30}},
+        {name:'BLADE', type:'sawtooth', oct:0,  det:+5, atk:0.018, rel:0.28, gain:0.52,
+         pair:{type:'sawtooth', oct:-12,det:-9, gain:0.42}},
     ];
 
     // ── Scales ─────────────────────────────────────────────────────
@@ -181,7 +199,11 @@ window.__music = (function () {
     var swarmFilt, swarmDelay, swarmDelayFB, swarmDelayOut, swarmVerbSend;
     var swarmOscs = [];
     var distCurve;
-    var swarmCountdown = 2;
+    // Swarm entries overlap by design, so cap how many run at once — each
+    // builds ~15 nodes. Tracked as scheduled end times on the audio clock,
+    // not a wall-clock timer: scheduling runs ahead of playback, so a
+    // setTimeout-based counter drifts and wrongly blocks entries.
+    var swarmEnds = [];
     var analyser = null;
 
     // ── User-tunable parameters (drives the SYNTH panel in AUDIO.SYS) ──
@@ -620,20 +642,35 @@ window.__music = (function () {
     //    melodic layer that phrases through scale tones with portamento.
     //    Pad voices are chord-tracked (swarmOscs); melodic voices are not —
     //    they keep their scheduled phrase through chord changes.
-    function triggerSwarm(when, dur) {
+    function triggerSwarm(when, dur, role) {
         var sc    = SCALES[curChord ? curChord.sc : 'dorian'];
         var scLen = sc.length;
         var root  = curRoot;
         var iv    = curChord ? curChord.iv : [0, 7, 10];
 
+        // Role steers the envelope shape and the pad/melodic balance:
+        //   tex  — sits under everything as a drone, melodic layer pulled back
+        //   lead — foreground phrasing, melodic layer pushed forward
+        //   peak — both, at full level
+        role = role || 'lead';
         var mRng = Math.random();
-        var mode = mRng < 0.28 ? 'bloom'
-                 : mRng < 0.55 ? 'drift'
-                 : mRng < 0.78 ? 'ascent'
-                 : 'exhale';
+        var mode;
+        if (role === 'tex') {
+            mode = mRng < 0.72 ? 'drift' : 'exhale';
+        } else if (role === 'peak') {
+            mode = mRng < 0.55 ? 'ascent' : 'bloom';
+        } else {
+            mode = mRng < 0.34 ? 'bloom'
+                 : mRng < 0.62 ? 'ascent'
+                 : mRng < 0.84 ? 'exhale'
+                 : 'drift';
+        }
+
+        // Melodic voices relative to the pad bed
+        var melMix = role === 'tex' ? 0.45 : (role === 'peak' ? 1.35 : 1.05);
 
         // Master gain — shape varies per mode to drive dynamics
-        var PEAK = P.swarmLevel;
+        var PEAK = P.swarmLevel * (role === 'tex' ? 0.85 : (role === 'peak' ? 1.30 : 1.05));
         if (PEAK <= 0) return;  // muted — skip building the whole voice graph
         var masterG = ctx.createGain();
         masterG.gain.setValueAtTime(0, when);
@@ -722,7 +759,7 @@ window.__music = (function () {
                 osc.frequency.exponentialRampToValueAtTime(newFreq, noteT + step * glideFrac);
             }
 
-            var g = ctx.createGain(); g.gain.value = 1.0;
+            var g = ctx.createGain(); g.gain.value = melMix;
             osc.connect(g); g.connect(masterG);
             osc.start(when); osc.stop(when + dur + 0.2);
             osc.onended = function () { try { g.disconnect(); osc.disconnect(); } catch (e) {} };
@@ -813,16 +850,32 @@ window.__music = (function () {
     }
 
     // ── Melody ────────────────────────────────────────────────────────
-    function playMelNote(when, freq, dur) {
-        var osc = ctx.createOscillator(); osc.type = 'triangle';
-        osc.frequency.value = freq;
+    // One oscillator layer of a melody note
+    function melLayer(when, freq, dur, cfg, amp) {
+        var osc = ctx.createOscillator();
+        osc.type = cfg.type;
+        osc.detune.value = cfg.det || 0;
+        osc.frequency.value = freq * Math.pow(2, (cfg.oct || 0) / 12);
         var g = ctx.createGain();
         g.gain.setValueAtTime(0.001, when);
-        g.gain.linearRampToValueAtTime(0.126 * P.melLevel, when+0.06);
-        g.gain.setTargetAtTime(0.001, when+dur*0.82, 0.50);
+        g.gain.linearRampToValueAtTime(amp, when + (cfg.atk || 0.06));
+        g.gain.setTargetAtTime(0.001, when + dur * 0.82, cfg.rel || 0.5);
         osc.connect(g); g.connect(melFilt);
-        osc.start(when); osc.stop(when+dur+2.8);
+        osc.start(when); osc.stop(when + dur + 2.8);
         osc.onended = function(){try{g.disconnect();osc.disconnect();}catch(e){}};
+    }
+
+    // Voiced per section — see MEL_VOICES
+    function playMelNote(when, freq, dur) {
+        var v = MEL_VOICES[curSec.mv % MEL_VOICES.length];
+        var base = 0.126 * P.melLevel;
+        melLayer(when, freq, dur, v, base * v.gain);
+        if (v.pair) {
+            melLayer(when, freq, dur,
+                     {type:v.pair.type, oct:v.pair.oct, det:v.pair.det,
+                      atk:v.atk, rel:v.rel},
+                     base * v.pair.gain);
+        }
     }
 
     function makeMelPhrase(scaleName, root, seed) {
@@ -936,14 +989,24 @@ window.__music = (function () {
                     if (Math.random() < 0.22) {
                         triggerGlitch(nextStepT + Math.random() * STEP * 1.5);
                     }
-                    // Swarmatron — only where the section calls for it
-                    if (--swarmCountdown <= 0) {
-                        if (curSec.sw) {
-                            var barDur = curTmpl.n * STEP;
-                            triggerSwarm(nextStepT, barDur * (2 + Math.floor(Math.random() * 3)));
-                        }
-                        swarmCountdown = Math.max(1, Math.round(P.swarmRate)) +
-                                         Math.floor(Math.random() * 2);
+                }
+
+                // ── Swarmatron ────────────────────────────────────────
+                // Anchored to position within the section rather than a
+                // free-running countdown: the countdown used to burn down
+                // (and reset) in sections where the swarm was switched off,
+                // so entries were being skipped rather than deferred. Now
+                // every section states its own interval and length, and the
+                // swarm is present in all of them.
+                var every = Math.max(1, Math.round(curSec.swE * (P.swarmRate / 2)));
+                if (secBar % every === 0) {
+                    // Drop entries that have already finished on the audio clock
+                    swarmEnds = swarmEnds.filter(function (e) { return e > nextStepT; });
+                    if (swarmEnds.length < 2) {
+                        var barDur = curTmpl.n * STEP;
+                        var swDur  = barDur * curSec.swD;
+                        triggerSwarm(nextStepT, swDur, curSec.swR);
+                        swarmEnds.push(nextStepT + swDur);
                     }
                 }
                 if (curSec.ml && nextStepT >= melNextT) schedMelPhrase(nextStepT);
