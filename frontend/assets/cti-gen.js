@@ -27,6 +27,14 @@ window.__ctiGen = (function () {
     var PARAM_DEFS = [
         {id:'mode',    label:'MODE',    min:0,   max:3,   dflt:0,    fmt:'mode',
          hint:'auto · b-scan · angio · catheter'},
+        {id:'geom',    label:'TISSUE',  min:0,   max:4,   dflt:0,    fmt:'geom',
+         hint:'retina · cornea · skin · vessel · lesion'},
+        {id:'splice',  label:'SPLICE',  min:1,   max:6,   dflt:1,    fmt:'i',
+         hint:'scans stitched in random columns'},
+        {id:'pxw',     label:'WIDTH',   min:160, max:1600,dflt:720,  fmt:'px',
+         hint:'output width in pixels'},
+        {id:'pxh',     label:'HEIGHT',  min:120, max:900, dflt:260,  fmt:'px',
+         hint:'output height in pixels'},
         {id:'speckle', label:'SPECKLE', min:0,   max:1.6, dflt:0.85, fmt:'n',
          hint:'coherent noise texture'},
         {id:'gain',    label:'GAIN',    min:0.2, max:3.0, dflt:1.35, fmt:'n',
@@ -39,8 +47,6 @@ window.__ctiGen = (function () {
          hint:'stratified tissue bands'},
         {id:'flow',    label:'FLOW',    min:0,   max:1,   dflt:0.45, fmt:'n',
          hint:'doppler red/green encoding'},
-        {id:'seg',     label:'SEG',     min:0,   max:1,   dflt:0.7,  fmt:'n',
-         hint:'boundary segmentation overlay'},
         {id:'drift',   label:'MOTION',  min:0,   max:1,   dflt:0.35, fmt:'n',
          hint:'subject movement artifact'},
     ];
@@ -88,14 +94,16 @@ window.__ctiGen = (function () {
     // blank), so the caller knows it has to lay down a fresh frame.
     function resize() {
         if (!canvas) return false;
-        // getBoundingClientRect forces layout, so this is correct even on the
-        // first call right after the element is appended
-        var r  = canvas.getBoundingClientRect();
-        var cw = Math.max(120, Math.floor(r.width  || container.clientWidth || 480));
-        var ch = Math.max(90,  Math.floor(r.height || 240));
+        // Backing store is exactly the requested pixel size — that's what
+        // gets exported. CSS then scales it down to fit the pane if it's
+        // wider than the panel, without changing the output resolution.
+        var cw = Math.max(160, Math.round(P.pxw));
+        var ch = Math.max(120, Math.round(P.pxh));
         if (cw === W && ch === H) return false;
         W = cw; H = ch;
         canvas.width = W; canvas.height = H;
+        canvas.style.width  = W + 'px';
+        canvas.style.height = 'auto';
         img = ctx.createImageData(W, H);
         buf = img.data;
         for (var i = 3; i < buf.length; i += 4) buf[i] = 255;   // opaque
@@ -120,44 +128,145 @@ window.__ctiGen = (function () {
         for (var i = 0; i < buf.length; i += 4) { buf[i] = 0; buf[i+1] = 0; buf[i+2] = 0; }
     }
 
-    // ── Tissue model ──────────────────────────────────────────────
-    // A depth profile of stratified backscatter, attenuated exponentially.
-    // Built once per frame and indexed by depth, so the per-pixel work is
-    // a lookup rather than a sum of gaussians.
-    var profile = null;
-    function buildProfile(t) {
-        if (!profile || profile.length !== H) profile = new Float32Array(H);
-        var n = Math.round(P.layers);
-        var mu = 0.9 * P.atten;
-        for (var d = 0; d < H; d++) {
-            var dn = d / H;                      // 0..1 depth into tissue
-            var v = 0.05;                        // background scatter
-            for (var L = 0; L < n; L++) {
-                // Layers sit at increasing depth, alternating bright/dark,
-                // with the brightest pair (EZ / RPE) near the outer retina
-                var c = 0.08 + (L / n) * 0.78;
-                var amp = (L % 2 === 0 ? 0.55 : 0.16) * (1 + 0.9 * Math.exp(-Math.pow((c - 0.66) / 0.13, 2)));
-                var wdt = 0.016 + 0.012 * (L % 3);
-                var g = (dn - c) / wdt;
-                v += amp * Math.exp(-g * g);
+    // ── Tissue geometries ─────────────────────────────────────────
+    // What is being scanned, as distinct from how it's scanned. Each
+    // supplies a stack of scattering bands, a surface shape, a bulk
+    // attenuation and where its segmentation boundaries sit — the things
+    // that actually distinguish one tissue's OCT signature from another.
+    //   bands: {c: depth 0-1, amp: backscatter, w: band thickness}
+    var GEOMS = [
+        {
+            name: 'RETINA',           // thin, many-layered, very bright outer band
+            mu: 0.9, base: 0.05,
+            bands: [{c:0.10,amp:0.62,w:0.020},{c:0.20,amp:0.16,w:0.026},
+                    {c:0.30,amp:0.44,w:0.018},{c:0.41,amp:0.12,w:0.034},
+                    {c:0.56,amp:0.30,w:0.020},{c:0.66,amp:1.05,w:0.016},
+                    {c:0.74,amp:0.90,w:0.020},{c:0.86,amp:0.34,w:0.045}],
+            surf: function (nx, tt, P) {
+                // foveal pit — a depression in the inner surface
+                return 0.17 + 0.10 * nx * nx + 0.16 * Math.exp(-Math.pow(nx / 0.20, 2))
+                     + P.drift * (0.020 * Math.sin(tt * 0.7 + nx * 2) + 0.012 * Math.sin(tt * 1.9));
             }
-            profile[d] = v * Math.exp(-mu * dn * 4.0);
+        },
+        {
+            name: 'CORNEA',           // strongly curved, largely transparent stroma
+            mu: 0.35, base: 0.02,
+            bands: [{c:0.06,amp:1.00,w:0.014},{c:0.13,amp:0.34,w:0.014},
+                    {c:0.42,amp:0.10,w:0.240},{c:0.80,amp:0.72,w:0.016},
+                    {c:0.86,amp:0.44,w:0.012}],
+            surf: function (nx, tt, P) {
+                return 0.13 + 0.30 * nx * nx
+                     + P.drift * 0.018 * Math.sin(tt * 0.8 + nx);
+            }
+        },
+        {
+            name: 'SKIN',             // rough surface, broad diffuse dermis
+            mu: 1.9, base: 0.10,
+            bands: [{c:0.05,amp:0.70,w:0.030},{c:0.16,amp:0.30,w:0.040},
+                    {c:0.34,amp:0.52,w:0.090},{c:0.62,amp:0.26,w:0.150}],
+            surf: function (nx, tt, P) {
+                return 0.16 + 0.035 * Math.sin(nx * 9 + tt * 0.4)
+                     + 0.022 * Math.sin(nx * 23 - tt * 0.7)
+                     + P.drift * 0.02 * Math.sin(tt * 1.3);
+            }
+        },
+        {
+            name: 'VESSEL',           // intima / media / adventitia
+            mu: 1.15, base: 0.06,
+            bands: [{c:0.07,amp:0.85,w:0.016},{c:0.22,amp:0.18,w:0.070},
+                    {c:0.46,amp:0.66,w:0.055},{c:0.72,amp:0.40,w:0.110}],
+            surf: function (nx, tt, P) {
+                return 0.20 + 0.045 * Math.sin(nx * 3.1 + tt * 0.5)
+                     + P.drift * 0.02 * Math.sin(tt * 1.1 + nx * 4);
+            }
+        },
+        {
+            name: 'LESION',           // disrupted stratification, heterogeneous
+            mu: 1.5, base: 0.12,
+            bands: [{c:0.09,amp:0.55,w:0.030},{c:0.27,amp:0.85,w:0.075},
+                    {c:0.44,amp:0.22,w:0.055},{c:0.58,amp:0.70,w:0.100},
+                    {c:0.80,amp:0.30,w:0.070}],
+            surf: function (nx, tt, P) {
+                return 0.18 + 0.06 * Math.sin(nx * 5.7 + tt * 0.6)
+                     + 0.04 * Math.sin(nx * 13.3 + tt * 1.1)
+                     + P.drift * 0.03 * Math.sin(tt * 1.7);
+            }
         }
+    ];
+    var GEOM_NAMES = GEOMS.map(function (g) { return g.name; });
+
+    // One cached depth profile per geometry — splicing needs several live at
+    // once, and it's a lookup table in the pixel loop either way.
+    var profiles = [];
+    function buildProfile(gi) {
+        var G = GEOMS[gi % GEOMS.length];
+        var p = profiles[gi];
+        if (!p || p.length !== H) { p = new Float32Array(H); profiles[gi] = p; }
+        var mu = G.mu * P.atten;
+        // LAYERS thins or extends the stack rather than inventing bands
+        var n = Math.max(1, Math.min(G.bands.length, Math.round(P.layers * G.bands.length / 7)));
+        for (var d = 0; d < H; d++) {
+            var dn = d / H, v = G.base;
+            for (var L = 0; L < n; L++) {
+                var b = G.bands[L];
+                var g = (dn - b.c) / b.w;
+                v += b.amp * Math.exp(-g * g);
+            }
+            p[d] = v * Math.exp(-mu * dn * 4.0);
+        }
+        return p;
+    }
+    function buildAllProfiles() {
+        for (var i = 0; i < GEOMS.length; i++) buildProfile(i);
     }
 
     // ── Modes ─────────────────────────────────────────────────────
     var t = 0, sweepPos = 0, mode = 1, modeTimer = 0;
     var vessels = [], angioTree = [], treeSeed = 1;
 
-    // Retinal surface: curved, with the foveal pit at centre
-    function surfaceAt(x) {
+    // ── Splice sources ────────────────────────────────────────────
+    // Each source is an independent "scan": its own tissue, its own
+    // vertical offset and its own phase through the surface function, so
+    // stitched columns land at visibly different depths and shapes.
+    var sources = [], spliceBands = [], spliceAge = 0;
+
+    function rebuildSources() {
+        var r = lcg(9001 + Math.floor(t * 3) * 7919);
+        var n = Math.max(1, Math.round(P.splice));
+        sources = [];
+        for (var i = 0; i < n; i++) {
+            sources.push({
+                geom:  i === 0 ? Math.round(P.geom) % GEOMS.length
+                               : Math.floor(r() * GEOMS.length),
+                yOff:  (r() - 0.5) * 0.22,
+                phase: r() * 12,
+                scale: 0.85 + r() * 0.4
+            });
+        }
+        // Random-width column runs, each assigned a source
+        spliceBands = [];
+        var x = 0;
+        while (x < W) {
+            var wdt = n === 1 ? W : Math.max(8, Math.floor((0.04 + r() * 0.22) * W));
+            spliceBands.push({ x0: x, x1: Math.min(W, x + wdt),
+                               src: sources[Math.floor(r() * sources.length)] });
+            x += wdt;
+        }
+        spliceAge = 0;
+    }
+
+    function sourceForColumn(x) {
+        for (var i = 0; i < spliceBands.length; i++) {
+            if (x >= spliceBands[i].x0 && x < spliceBands[i].x1) return spliceBands[i].src;
+        }
+        return sources[0] || { geom: 0, yOff: 0, phase: 0, scale: 1 };
+    }
+
+    // Surface for a column, per its source's tissue and offset
+    function surfaceAt(x, src) {
         var nx = (x / W) * 2 - 1;
-        var curve = 0.10 * nx * nx;
-        var pit   = 0.16 * Math.exp(-Math.pow(nx / 0.20, 2));
-        var drift = P.drift * (0.020 * Math.sin(t * 0.7 + nx * 2.0) + 0.012 * Math.sin(t * 1.9));
-        // + pit, not −: the fovea is a depression in the inner surface, so
-        // it has to dip away from the top of the frame, not bulge toward it
-        return (0.17 + curve + pit + drift) * H;
+        var G = GEOMS[src.geom % GEOMS.length];
+        return (G.surf(nx * src.scale, t + src.phase, P) + src.yOff) * H;
     }
 
     function regenVessels() {
@@ -173,11 +282,11 @@ window.__ctiGen = (function () {
     // frame, which is both cheaper and how the real instrument builds an
     // image — the trailing columns are last sweep's data until overwritten.
     function drawBScanBand(x0, x1) {
-        var segTop = new Float32Array(Math.max(1, x1 - x0));
         for (var x = x0; x < x1; x++) {
             if (x < 0 || x >= W) continue;
-            var s = surfaceAt(x);
-            segTop[x - x0] = s;
+            var src = sourceForColumn(x);
+            var prof = profiles[src.geom] || buildProfile(src.geom);
+            var s = surfaceAt(x, src);
 
             // Vessel shadowing — attenuates everything below the vessel
             var shadow = 1;
@@ -199,7 +308,7 @@ window.__ctiGen = (function () {
                     sig = 0.012 * spk();                       // vitreous: noise floor only
                 } else {
                     var di = d | 0;
-                    sig = (di < H ? profile[di] : 0) * shadow;
+                    sig = (di < H ? prof[di] : 0) * shadow;
                     sig *= (1 - P.speckle) + P.speckle * spk(); // multiplicative speckle
                 }
                 // Log compression — dB display, keeps the noise floor visible
@@ -217,25 +326,6 @@ window.__ctiGen = (function () {
                 }
                 buf[k] = R; buf[k+1] = G; buf[k+2] = B;
             }
-
-            // Segmentation overlay — ILM in green, RPE in red, as clinical
-            // software draws them over the greyscale
-            if (P.seg > 0) {
-                paintLine(x, s, GREEN, P.seg);
-                paintLine(x, s + H * 0.60, RED, P.seg * 0.85);
-            }
-        }
-    }
-
-    function paintLine(x, y, col, a) {
-        var yi = y | 0;
-        for (var o = 0; o <= 1; o++) {
-            var yy = yi + o;
-            if (yy < 0 || yy >= H) continue;
-            var k = (yy * W + x) * 4;
-            buf[k]   += (col[0] - buf[k])   * a;
-            buf[k+1] += (col[1] - buf[k+1]) * a;
-            buf[k+2] += (col[2] - buf[k+2]) * a;
         }
     }
 
@@ -330,7 +420,7 @@ window.__ctiGen = (function () {
                     var d = (r - 0.16) / 0.95;
                     var di = (d * H) | 0;
                     if (di >= H) di = H - 1;
-                    sig = profile[di] * 2.2;
+                    sig = (profiles[Math.round(P.geom) % GEOMS.length] || buildProfile(Math.round(P.geom)))[di] * 2.2;
                     sig *= (1 - P.speckle) + P.speckle * spk();
                     // Guidewire shadow — a hard radial wedge, the classic artifact
                     var dg = Math.abs(Math.atan2(Math.sin(th - gw), Math.cos(th - gw)));
@@ -365,7 +455,7 @@ window.__ctiGen = (function () {
 
         // A resize blanks the buffer — repaint a whole frame rather than
         // leaving everything black until the sweep has crossed it
-        if (realloc) { buildProfile(t); primeFrame(); sweepPos = 0; return; }
+        if (realloc) { buildAllProfiles(); rebuildSources(); primeFrame(); sweepPos = 0; return; }
 
         // AUTO cycles the modes so the page keeps moving
         if (Math.round(P.mode) === 0) {
@@ -382,7 +472,13 @@ window.__ctiGen = (function () {
             if (m !== mode) { mode = m; clearBuf(); if (mode === 2) buildTree(); if (mode === 1) regenVessels(); }
         }
 
-        buildProfile(t);
+        buildAllProfiles();
+
+        // Re-cut the splice every few sweeps so the composite keeps changing
+        if (P.splice > 1) {
+            spliceAge += 0.033;
+            if (spliceAge > 6.0) rebuildSources();
+        }
 
         if (mode === 1) {
             var step = Math.max(1, (W * 0.012 * P.sweep) | 0);
@@ -451,6 +547,9 @@ window.__ctiGen = (function () {
         ctx.textBaseline = 'top';
         ctx.fillStyle = 'rgba(232,228,217,0.42)';
         ctx.fillText('CTIGEN.SYS · ' + MODE_NAMES[mode] +
+                     ' · ' + GEOM_NAMES[Math.round(P.geom) % GEOM_NAMES.length] +
+                     (P.splice > 1 ? ' · SPLICE×' + Math.round(P.splice) : '') +
+                     ' · ' + W + '×' + H +
                      ' · ' + (P.gain * 20).toFixed(0) + 'dB', 6, 5);
         ctx.textBaseline = 'bottom';
         ctx.fillStyle = 'rgba(232,228,217,0.22)';
@@ -465,6 +564,8 @@ window.__ctiGen = (function () {
 
     function fmtVal(def, v) {
         if (def.fmt === 'mode') return MODE_NAMES[Math.round(v)];
+        if (def.fmt === 'geom') return GEOM_NAMES[Math.round(v) % GEOM_NAMES.length];
+        if (def.fmt === 'px')   return Math.round(v) + 'px';
         if (def.fmt === 'i')    return String(Math.round(v));
         return v.toFixed(2);
     }
@@ -487,9 +588,18 @@ window.__ctiGen = (function () {
         if (rect.width <= 0) return;
         var f = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
         var d = drag.def, v = d.min + f * (d.max - d.min);
-        if (d.fmt === 'i' || d.fmt === 'mode') v = Math.round(v);
+        if (d.fmt === 'i' || d.fmt === 'mode' || d.fmt === 'geom' || d.fmt === 'px') v = Math.round(v);
         P[d.id] = v;
-        if (d.id === 'layers') buildProfile(t);
+        if (d.id === 'layers' || d.id === 'atten' || d.id === 'geom') buildAllProfiles();
+        // Anything that changes what the sources are has to rebuild them, or
+        // the spliced bands keep pointing at the old tissue set
+        if (d.id === 'splice' || d.id === 'geom') rebuildSources();
+        // Dimension changes are picked up by resize() on the next frame,
+        // which reallocates and re-primes; prime here too so a paused or
+        // not-yet-running panel still updates
+        if (d.id === 'pxw' || d.id === 'pxh') {
+            if (resize()) { buildAllProfiles(); rebuildSources(); primeFrame(); sweepPos = 0; }
+        }
         paintRow(d);
     }
     function onMove(e) {
@@ -555,11 +665,36 @@ window.__ctiGen = (function () {
         reset.className = 'synth-btn'; reset.textContent = '[ RESET ]';
         reset.addEventListener('click', function () {
             for (var k in DEFAULTS) if (Object.prototype.hasOwnProperty.call(DEFAULTS, k)) P[k] = DEFAULTS[k];
-            mode = 1; sweepPos = 0; clearBuf(); buildProfile(t); paintAll();
+            mode = 1; sweepPos = 0; clearBuf(); buildAllProfiles(); rebuildSources(); paintAll();
         });
+        // Export at the backing-store resolution, which is exactly the
+        // WIDTH × HEIGHT set above regardless of how the canvas is displayed
+        var save = document.createElement('button');
+        save.className = 'synth-btn'; save.textContent = '[ EXPORT PNG ]';
+        save.addEventListener('click', function () {
+            if (!canvas) return;
+            var a = document.createElement('a');
+            a.download = 'ctigen_' + GEOM_NAMES[Math.round(P.geom) % GEOM_NAMES.length].toLowerCase() +
+                         '_' + W + 'x' + H + '_' + Date.now() + '.png';
+            a.href = canvas.toDataURL('image/png');
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+        });
+
+        var reseed = document.createElement('button');
+        reseed.className = 'synth-btn'; reseed.textContent = '[ RESEED ]';
+        reseed.addEventListener('click', function () {
+            treeSeed = (treeSeed * 1103515245 + 12345) >>> 0;
+            t += 7.7;                       // shifts every seeded draw
+            regenVessels(); buildTree(); rebuildSources();
+            clearBuf(); primeFrame(); sweepPos = 0;
+        });
+
         var close = document.createElement('button');
         close.className = 'synth-btn'; close.textContent = '[ CLOSE ]';
         close.addEventListener('click', function () { stop(); });
+        foot.appendChild(save); foot.appendChild(reseed);
         foot.appendChild(reset); foot.appendChild(close);
         wrap.appendChild(foot);
         return wrap;
@@ -571,7 +706,7 @@ window.__ctiGen = (function () {
     // that the sweep then starts overwriting.
     function primeFrame() {
         if (!buf) return;
-        buildProfile(t);
+        buildAllProfiles();
         if (mode === 2) {
             drawAngioBand(0, H);
             ctx.putImageData(img, 0, 0);
@@ -600,7 +735,7 @@ window.__ctiGen = (function () {
 
         W = H = 0;
         resize();
-        regenVessels(); buildTree(); buildProfile(0);
+        regenVessels(); buildTree(); buildAllProfiles(); rebuildSources();
         paintAll();
         mode = Math.round(P.mode) === 0 ? 1 : Math.round(P.mode);
         sweepPos = 0; modeTimer = 0; lastTs = 0;
