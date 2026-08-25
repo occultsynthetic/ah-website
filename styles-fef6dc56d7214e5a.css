@@ -1116,13 +1116,14 @@ body.from-audio-sys #texture-field {
     user-select: none;
 }
 
+/* Width/height come from the generator in real pixels so the export is
+   exactly the requested size; max-width only scales the *display* down
+   when the requested width overflows the panel. */
 .cti-canvas {
     display: block;
-    width: 100%;
-    height: clamp(150px, 32vh, 300px);
+    max-width: 100%;
     background: #000;
     margin-bottom: 0.6rem;
-    /* Registration marks, same drafting language as the panels */
     outline: 1px solid rgba(var(--bone), 0.07);
 }
 
