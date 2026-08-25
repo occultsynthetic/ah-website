@@ -38,6 +38,7 @@
         '//  HELP    — display this list',
         '//  ASCII   — toggle audio-reactive ASCII visualiser',
         '//  SYNTH   — open the synthesiser control panel',
+        '//  CTIGEN  — coherence-tomography imaging generator',
         '//  RESET   — restore all synth settings to defaults',
         '//  EXIT    — return to MEGASTRUCTURE.SYS',
         '//',
@@ -78,6 +79,19 @@
                              '// DRAG A BAR TO ADJUST · TYPE SYNTH OR ESC TO CLOSE']);
             } else {
                 appendLines(['// SYNTH PANEL UNAVAILABLE — AUDIO ENGINE NOT LOADED']);
+            }
+            cmdEl.focus();
+        },
+        ctigen: function () {
+            var g = window.__ctiGen;
+            if (!g) { appendLines(['// CTIGEN NOT AVAILABLE']); return; }
+            if (g.isRunning()) {
+                g.stop();
+                appendLines(['// CTIGEN.SYS — HALTED']);
+            } else {
+                g.start();
+                appendLines(['// CTIGEN.SYS — ACQUIRING',
+                             '// DRAG A BAR TO ADJUST · TYPE CTIGEN OR ESC TO STOP']);
             }
             cmdEl.focus();
         },
@@ -122,6 +136,7 @@
             // Clearing outEl would orphan the synth panel's DOM while leaving
             // the pane's pinned height behind — close it properly first.
             if (window.__synthUI && window.__synthUI.isOpen()) window.__synthUI.hide();
+            if (window.__ctiGen && window.__ctiGen.isRunning()) window.__ctiGen.stop();
             outEl.innerHTML = '';
             appendLines(BOOT);
 
@@ -165,6 +180,9 @@
             if (window.__asciiVis && window.__asciiVis.isRunning()) {
                 window.__asciiVis.stop();
                 appendLines(['// ASCII VISUALISER — OFF']);
+            } else if (window.__ctiGen && window.__ctiGen.isRunning()) {
+                window.__ctiGen.stop();
+                appendLines(['// CTIGEN.SYS — HALTED']);
             } else if (window.__synthUI && window.__synthUI.isOpen()) {
                 window.__synthUI.hide();
                 appendLines(['// SYNTH PANEL — CLOSED']);
